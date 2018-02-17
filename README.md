@@ -1,9 +1,9 @@
 atomicx
 ===
 
-Experimetal package that provides "sync/atomic" compatible API (except Value type) with configurable memory models.
+Experimetal package that provides "sync/atomic" compatible API (except Value type) with configurable memory orders.
 
-All C++11 memory models are supported: Relaxed, Consume, Acquire, Release, Acquire-Release and
+All C++11 memory orders are supported: Relaxed, Consume, Acquire, Release, Acquire-Release and
 Sequential Consistency. All CASes can be optionally weak.
 
 Package is implemented as `cgo` function wrappers over compilers' built-in `__atomic_*` functions (https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html) that replaced 
