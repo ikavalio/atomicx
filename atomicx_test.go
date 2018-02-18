@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"unsafe"
 )
@@ -41,6 +42,104 @@ var test64err = func() (err interface{}) {
 	}
 	return nil
 }()
+
+func testBinaryOpInt32(op func(int32, int32) int32, atomicFun func(*int32, int32, MemOrder) int32, t *testing.T) {
+	for _, order := range memOrders {
+		var x struct {
+			before int32
+			i      int32
+			after  int32
+		}
+		x.before = magic32
+		x.after = magic32
+		var j int32
+		for delta := int32(1); delta+delta > delta; delta += delta {
+			k := atomicFun(&x.i, delta, order)
+			j = op(j, delta)
+			if x.i != j || k != j {
+				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
+			}
+		}
+		if x.before != magic32 || x.after != magic32 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
+		}
+	}
+}
+
+func testBinaryOpUint32(op func(uint32, uint32) uint32, atomicFun func(*uint32, uint32, MemOrder) uint32, t *testing.T) {
+	for _, order := range memOrders {
+		var x struct {
+			before uint32
+			i      uint32
+			after  uint32
+		}
+		x.before = magic32
+		x.after = magic32
+		var j uint32
+		for delta := uint32(1); delta+delta > delta; delta += delta {
+			k := atomicFun(&x.i, delta, order)
+			j = op(j, delta)
+			if x.i != j || k != j {
+				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
+			}
+		}
+		if x.before != magic32 || x.after != magic32 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
+		}
+	}
+}
+
+func testBinaryOpInt64(op func(int64, int64) int64, atomicFun func(*int64, int64, MemOrder) int64, t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
+	for _, order := range memOrders {
+		var x struct {
+			before int64
+			i      int64
+			after  int64
+		}
+		x.before = magic64
+		x.after = magic64
+		var j int64
+		for delta := int64(1); delta+delta > delta; delta += delta {
+			k := atomicFun(&x.i, delta, order)
+			j = op(j, delta)
+			if x.i != j || k != j {
+				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
+			}
+		}
+		if x.before != magic64 || x.after != magic64 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic64, magic64)
+		}
+	}
+}
+
+func testBinaryOpUint64(op func(uint64, uint64) uint64, atomicFun func(*uint64, uint64, MemOrder) uint64, t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
+	for _, order := range memOrders {
+		var x struct {
+			before uint64
+			i      uint64
+			after  uint64
+		}
+		x.before = magic64
+		x.after = magic64
+		var j uint64
+		for delta := uint64(1); delta+delta > delta; delta += delta {
+			k := atomicFun(&x.i, delta, order)
+			j = op(j, delta)
+			if x.i != j || k != j {
+				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
+			}
+		}
+		if x.before != magic64 || x.after != magic64 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic64, magic64)
+		}
+	}
+}
 
 func TestSwapInt32(t *testing.T) {
 	for _, order := range memOrders {
@@ -89,10 +188,10 @@ func TestSwapUint32(t *testing.T) {
 }
 
 func TestSwapInt64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before int64
 			i      int64
@@ -115,10 +214,10 @@ func TestSwapInt64(t *testing.T) {
 }
 
 func TestSwapUint64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before uint64
 			i      uint64
@@ -191,101 +290,19 @@ func TestSwapPointer(t *testing.T) {
 }
 
 func TestAddInt32(t *testing.T) {
-	for _, order := range memOrders {
-		var x struct {
-			before int32
-			i      int32
-			after  int32
-		}
-		x.before = magic32
-		x.after = magic32
-		var j int32
-		for delta := int32(1); delta+delta > delta; delta += delta {
-			k := AddInt32(&x.i, delta, order)
-			j += delta
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic32 || x.after != magic32 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
-		}
-	}
+	testBinaryOpInt32(func(a int32, b int32) int32 { return a + b }, AddInt32, t)
 }
 
 func TestAddUint32(t *testing.T) {
-	for _, order := range memOrders {
-		var x struct {
-			before uint32
-			i      uint32
-			after  uint32
-		}
-		x.before = magic32
-		x.after = magic32
-		var j uint32
-		for delta := uint32(1); delta+delta > delta; delta += delta {
-			k := AddUint32(&x.i, delta, order)
-			j += delta
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic32 || x.after != magic32 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
-		}
-	}
+	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a + b }, AddUint32, t)
 }
 
 func TestAddInt64(t *testing.T) {
-	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
-		var x struct {
-			before int64
-			i      int64
-			after  int64
-		}
-		x.before = magic64
-		x.after = magic64
-		var j int64
-		for delta := int64(1); delta+delta > delta; delta += delta {
-			k := AddInt64(&x.i, delta, order)
-			j += delta
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic64 || x.after != magic64 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, int64(magic64), int64(magic64))
-		}
-	}
+	testBinaryOpInt64(func(a int64, b int64) int64 { return a + b }, AddInt64, t)
 }
 
 func TestAddUint64(t *testing.T) {
-	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
-		var x struct {
-			before uint64
-			i      uint64
-			after  uint64
-		}
-		x.before = magic64
-		x.after = magic64
-		var j uint64
-		for delta := uint64(1); delta+delta > delta; delta += delta {
-			k := AddUint64(&x.i, delta, order)
-			j += delta
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic64 || x.after != magic64 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, uint64(magic64), uint64(magic64))
-		}
-	}
+	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a + b }, AddUint64, t)
 }
 
 func TestAddUintptr(t *testing.T) {
@@ -450,10 +467,10 @@ func TestCompareAndSwap2Uint32(t *testing.T) {
 }
 
 func TestCompareAndSwapInt64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before int64
 			i      int64
@@ -486,11 +503,11 @@ func TestCompareAndSwapInt64(t *testing.T) {
 }
 
 func TestCompareAndSwap2Int64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order1 := range memOrders {
 		for _, order2 := range memOrders {
-			if test64err != nil {
-				t.Skipf("Skipping 64-bit tests: %v", test64err)
-			}
 			var x struct {
 				before int64
 				i      int64
@@ -524,10 +541,10 @@ func TestCompareAndSwap2Int64(t *testing.T) {
 }
 
 func testCompareAndSwapUint64(t *testing.T, cas func(*uint64, uint64, uint64, bool, MemOrder) bool) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before uint64
 			i      uint64
@@ -564,11 +581,11 @@ func TestCompareAndSwapUint64(t *testing.T) {
 }
 
 func TestCompareAndSwap2Uint64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order1 := range memOrders {
 		for _, order2 := range memOrders {
-			if test64err != nil {
-				t.Skipf("Skipping 64-bit tests: %v", test64err)
-			}
 			var x struct {
 				before uint64
 				i      uint64
@@ -790,10 +807,10 @@ func TestLoadUint32(t *testing.T) {
 }
 
 func TestLoadInt64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before int64
 			i      int64
@@ -815,10 +832,10 @@ func TestLoadInt64(t *testing.T) {
 }
 
 func TestLoadUint64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before uint64
 			i      uint64
@@ -934,10 +951,10 @@ func TestStoreUint32(t *testing.T) {
 }
 
 func TestStoreInt64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before int64
 			i      int64
@@ -960,10 +977,10 @@ func TestStoreInt64(t *testing.T) {
 }
 
 func TestStoreUint64(t *testing.T) {
+	if test64err != nil {
+		t.Skipf("Skipping 64-bit tests: %v", test64err)
+	}
 	for _, order := range memOrders {
-		if test64err != nil {
-			t.Skipf("Skipping 64-bit tests: %v", test64err)
-		}
 		var x struct {
 			before uint64
 			i      uint64
@@ -1033,6 +1050,92 @@ func TestStorePointer(t *testing.T) {
 			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magicptr, magicptr)
 		}
 	}
+}
+
+func TestTestAndSetClear(t *testing.T) {
+	for _, order := range memOrders {
+		var x = new(bool)
+		if TestAndSet(x, order) {
+			t.Fatalf("atomic flag set failed: flag=%v", *x)
+		}
+		if !TestAndSet(x, order) {
+			t.Fatalf("atomic flag second set failed: flag=%v", *x)
+		}
+		if !TestAndSet(x, order) {
+			t.Fatalf("atomic flag third set failed: flag=%v", *x)
+		}
+		Clear(x, order)
+		if TestAndSet(x, order) {
+			t.Fatalf("atomic flag set after clear failed: flag=%v", *x)
+		}
+		if !TestAndSet(x, order) {
+			t.Fatalf("atomic flag second set after clear failed: flag=%v", *x)
+		}
+	}
+}
+
+func TestAndInt32(t *testing.T) {
+	testBinaryOpInt32(func(a int32, b int32) int32 { return a & b }, AndInt32, t)
+}
+
+func TestAndUint32(t *testing.T) {
+	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a & b }, AndUint32, t)
+}
+
+func TestAndInt64(t *testing.T) {
+	testBinaryOpInt64(func(a int64, b int64) int64 { return a & b }, AndInt64, t)
+}
+
+func TestAndUint64(t *testing.T) {
+	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a & b }, AndUint64, t)
+}
+
+func TestOrInt32(t *testing.T) {
+	testBinaryOpInt32(func(a int32, b int32) int32 { return a | b }, OrInt32, t)
+}
+
+func TestOrUint32(t *testing.T) {
+	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a | b }, OrUint32, t)
+}
+
+func TestOrInt64(t *testing.T) {
+	testBinaryOpInt64(func(a int64, b int64) int64 { return a | b }, OrInt64, t)
+}
+
+func TestOrUint64(t *testing.T) {
+	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a | b }, OrUint64, t)
+}
+
+func TestXorInt32(t *testing.T) {
+	testBinaryOpInt32(func(a int32, b int32) int32 { return a ^ b }, XorInt32, t)
+}
+
+func TestXorUint32(t *testing.T) {
+	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a ^ b }, XorUint32, t)
+}
+
+func TestXorInt64(t *testing.T) {
+	testBinaryOpInt64(func(a int64, b int64) int64 { return a ^ b }, XorInt64, t)
+}
+
+func TestXorUint64(t *testing.T) {
+	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a ^ b }, XorUint64, t)
+}
+
+func TestNandInt32(t *testing.T) {
+	testBinaryOpInt32(func(a int32, b int32) int32 { return ^(a & b) }, NandInt32, t)
+}
+
+func TestNandUint32(t *testing.T) {
+	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return ^(a & b) }, NandUint32, t)
+}
+
+func TestNandInt64(t *testing.T) {
+	testBinaryOpInt64(func(a int64, b int64) int64 { return ^(a & b) }, NandInt64, t)
+}
+
+func TestNandUint64(t *testing.T) {
+	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return ^(a & b) }, NandUint64, t)
 }
 
 // Tests of correct behavior, with contention.
@@ -1704,6 +1807,28 @@ func TestUnaligned64(t *testing.T) {
 	shouldPanic(t, "StoreUint64", func() { StoreUint64(p, 1, OrderSeqCst) })
 	shouldPanic(t, "CompareAndSwapUint64", func() { CompareAndSwapUint64(p, 1, 2, false, OrderSeqCst) })
 	shouldPanic(t, "AddUint64", func() { AddUint64(p, 3, OrderSeqCst) })
+}
+
+func TestSimpleSpinlock(t *testing.T) {
+	const rts = 10
+	a := 0
+	sl := new(bool)
+	var w sync.WaitGroup
+	for i := 0; i < rts; i++ {
+		w.Add(1)
+		go func() {
+			for TestAndSet(sl, OrderAcquire) {
+				runtime.Gosched()
+			}
+			defer w.Done()
+			defer Clear(sl, OrderRelease)
+			a++
+		}()
+	}
+	w.Wait()
+	if a != rts {
+		t.Errorf("a expected = %d, actual = %d", rts, a)
+	}
 }
 
 /* Current behavior: Don't check for nil just fail with SIGSEGV

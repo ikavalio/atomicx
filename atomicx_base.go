@@ -2,6 +2,8 @@ package atomicx
 
 // https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
 
+// TODO: __atomic_thread_fence
+
 /*
 #include <stdint.h>
 #include <stdbool.h>
@@ -34,6 +36,26 @@ bool TOKENPASTE2(atomic_compare_exchange_, TYPE) (TYPE *p, TYPE *exp, TYPE what,
 #define ATOMIC_EXCHANGE(TYPE) \
 TYPE TOKENPASTE2(atomic_exchange_, TYPE) (TYPE *p, TYPE what, enum MemOrder order) { \
 	return __atomic_exchange_n(p, what, order); \
+} \
+
+#define ATOMIC_AND_FETCH(TYPE) \
+TYPE TOKENPASTE2(atomic_and_fetch_, TYPE) (TYPE *p, TYPE v, enum MemOrder order) { \
+	return __atomic_and_fetch(p, v, order); \
+} \
+
+#define ATOMIC_OR_FETCH(TYPE) \
+TYPE TOKENPASTE2(atomic_or_fetch_, TYPE) (TYPE *p, TYPE v, enum MemOrder order) { \
+	return __atomic_or_fetch(p, v, order); \
+} \
+
+#define ATOMIC_XOR_FETCH(TYPE) \
+TYPE TOKENPASTE2(atomic_xor_fetch_, TYPE) (TYPE *p, TYPE v, enum MemOrder order) { \
+	return __atomic_xor_fetch(p, v, order); \
+} \
+
+#define ATOMIC_NAND_FETCH(TYPE) \
+TYPE TOKENPASTE2(atomic_nand_fetch_, TYPE) (TYPE *p, TYPE v, enum MemOrder order) { \
+	return __atomic_nand_fetch(p, v, order); \
 } \
 
 enum MemOrder {
@@ -78,6 +100,34 @@ ATOMIC_EXCHANGE(uint32_t)
 ATOMIC_EXCHANGE(uint64_t)
 ATOMIC_EXCHANGE(uintptr_t)
 ATOMIC_EXCHANGE(goptr_t)
+
+bool atomic_test_and_set(bool *ptr, enum MemOrder order) {
+	return __atomic_test_and_set(ptr, order);
+}
+
+void atomic_clear(bool *ptr, enum MemOrder order) {
+	__atomic_clear(ptr, order);
+}
+
+ATOMIC_AND_FETCH(int32_t)
+ATOMIC_AND_FETCH(int64_t)
+ATOMIC_AND_FETCH(uint32_t)
+ATOMIC_AND_FETCH(uint64_t)
+
+ATOMIC_OR_FETCH(int32_t)
+ATOMIC_OR_FETCH(int64_t)
+ATOMIC_OR_FETCH(uint32_t)
+ATOMIC_OR_FETCH(uint64_t)
+
+ATOMIC_XOR_FETCH(int32_t)
+ATOMIC_XOR_FETCH(int64_t)
+ATOMIC_XOR_FETCH(uint32_t)
+ATOMIC_XOR_FETCH(uint64_t)
+
+ATOMIC_NAND_FETCH(int32_t)
+ATOMIC_NAND_FETCH(int64_t)
+ATOMIC_NAND_FETCH(uint32_t)
+ATOMIC_NAND_FETCH(uint64_t)
 */
 import "C"
 
@@ -146,6 +196,10 @@ func cptrUptr(addr *uintptr) *C.uintptr_t {
 
 func cptrPtr(addr *unsafe.Pointer) *C.goptr_t {
 	return (*C.goptr_t)(addr)
+}
+
+func cptrBool(addr *bool) *C._Bool {
+	return (*C._Bool)(unsafe.Pointer(addr))
 }
 
 // AddInt32 atomically adds delta to *addr and returns the new value.
@@ -374,4 +428,113 @@ func SwapUint64(addr *uint64, new uint64, order MemOrder) uint64 {
 // Valid memory orders:  OrderRelaxed, OrderSeqCst, OrderAcquire, OrderRelease, and OrderAcqRel.
 func SwapUintptr(addr *uintptr, new uintptr, order MemOrder) uintptr {
 	return (uintptr)(C.atomic_exchange_uintptr_t(cptrUptr(addr), (C.uintptr_t)(new), order.asC()))
+}
+
+// TestAndSet does atomic test-and-set operation on the bool *addr (atomically *addr = *addr ? *addr : true).
+// Returns the old value of *addr.
+// Valid memory orders:  all.
+func TestAndSet(addr *bool, order MemOrder) bool {
+	return (bool)(C.atomic_test_and_set(cptrBool(addr), order.asC()))
+}
+
+// Clear does atomic clear operation on the bool *addr. Should be used in conjunction with TestAndSet.
+// Valid memory orders:  OrderRelaxed, OrderSeqCst and OrderRelease.
+func Clear(addr *bool, order MemOrder) {
+	C.atomic_clear(cptrBool(addr), order.asC())
+}
+
+// AndInt32 does atomic binary-and between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func AndInt32(addr *int32, delta int32, order MemOrder) int32 {
+	return (int32)(C.atomic_and_fetch_int32_t(cptrI32(addr), (C.int32_t)(delta), order.asC()))
+}
+
+// AndInt64 does atomic binary-and between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func AndInt64(addr *int64, delta int64, order MemOrder) int64 {
+	return (int64)(C.atomic_and_fetch_int64_t(cptrI64(addr), (C.int64_t)(delta), order.asC()))
+}
+
+// AndUint32 does atomic binary-and between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func AndUint32(addr *uint32, delta uint32, order MemOrder) uint32 {
+	return (uint32)(C.atomic_and_fetch_uint32_t(cptrU32(addr), (C.uint32_t)(delta), order.asC()))
+}
+
+// AndUint64 does atomic binary-and between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func AndUint64(addr *uint64, delta uint64, order MemOrder) uint64 {
+	return (uint64)(C.atomic_and_fetch_uint64_t(cptrU64(addr), (C.uint64_t)(delta), order.asC()))
+}
+
+// OrInt32 does atomic binary-or between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func OrInt32(addr *int32, delta int32, order MemOrder) int32 {
+	return (int32)(C.atomic_or_fetch_int32_t(cptrI32(addr), (C.int32_t)(delta), order.asC()))
+}
+
+// OrInt64 does atomic binary-or between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func OrInt64(addr *int64, delta int64, order MemOrder) int64 {
+	return (int64)(C.atomic_or_fetch_int64_t(cptrI64(addr), (C.int64_t)(delta), order.asC()))
+}
+
+// OrUint32 does atomic binary-or between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func OrUint32(addr *uint32, delta uint32, order MemOrder) uint32 {
+	return (uint32)(C.atomic_or_fetch_uint32_t(cptrU32(addr), (C.uint32_t)(delta), order.asC()))
+}
+
+// OrUint64 does atomic binary-or between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func OrUint64(addr *uint64, delta uint64, order MemOrder) uint64 {
+	return (uint64)(C.atomic_or_fetch_uint64_t(cptrU64(addr), (C.uint64_t)(delta), order.asC()))
+}
+
+// XorInt32 does atomic binary-xor between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func XorInt32(addr *int32, delta int32, order MemOrder) int32 {
+	return (int32)(C.atomic_xor_fetch_int32_t(cptrI32(addr), (C.int32_t)(delta), order.asC()))
+}
+
+// XorInt64 does atomic binary-xor between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func XorInt64(addr *int64, delta int64, order MemOrder) int64 {
+	return (int64)(C.atomic_xor_fetch_int64_t(cptrI64(addr), (C.int64_t)(delta), order.asC()))
+}
+
+// XorUint32 does atomic binary-xor between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func XorUint32(addr *uint32, delta uint32, order MemOrder) uint32 {
+	return (uint32)(C.atomic_xor_fetch_uint32_t(cptrU32(addr), (C.uint32_t)(delta), order.asC()))
+}
+
+// XorUint64 does atomic binary-xor between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func XorUint64(addr *uint64, delta uint64, order MemOrder) uint64 {
+	return (uint64)(C.atomic_xor_fetch_uint64_t(cptrU64(addr), (C.uint64_t)(delta), order.asC()))
+}
+
+// NandInt32 does atomic binary-nand between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func NandInt32(addr *int32, delta int32, order MemOrder) int32 {
+	return (int32)(C.atomic_nand_fetch_int32_t(cptrI32(addr), (C.int32_t)(delta), order.asC()))
+}
+
+// NandInt64 does atomic binary-nand between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func NandInt64(addr *int64, delta int64, order MemOrder) int64 {
+	return (int64)(C.atomic_nand_fetch_int64_t(cptrI64(addr), (C.int64_t)(delta), order.asC()))
+}
+
+// NandUint32 does atomic binary-nand between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func NandUint32(addr *uint32, delta uint32, order MemOrder) uint32 {
+	return (uint32)(C.atomic_nand_fetch_uint32_t(cptrU32(addr), (C.uint32_t)(delta), order.asC()))
+}
+
+// NandUint64 does atomic binary-nand between delta and *addr and returns the new value.
+// Valid memory orders: all.
+func NandUint64(addr *uint64, delta uint64, order MemOrder) uint64 {
+	return (uint64)(C.atomic_nand_fetch_uint64_t(cptrU64(addr), (C.uint64_t)(delta), order.asC()))
 }
