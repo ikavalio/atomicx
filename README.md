@@ -1,7 +1,7 @@
 atomicx
 ===
 
-Experimetal package that provides "sync/atomic" compatible API (except Value type) with configurable memory orders.
+Experimetal package that provides `sync/atomic` compatible API (except Value type) with configurable memory orders.
 
 All C++11 memory orders are supported: Relaxed, Consume, Acquire, Release, Acquire-Release and
 Sequential Consistency. All CASes can be optionally weak.
@@ -21,7 +21,7 @@ documentation and make sure that correct memory orders are used in appropriate c
 
 __Available Functions__
 
-Standard "sync/atomic" interface:
+Functions compatible with `sync/atomic` API:
 
 ```
 // T is int32, int64, uint32, uint64, uintptr
@@ -37,7 +37,7 @@ LoadT(addr *T, order MemOrder) T
 StoreT(addr *T, order MemOrder) T
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-SwapInt32(addr *T, new T, order MemOrder) T
+SwapT(addr *T, new T, order MemOrder) T
 ```
 
 Extensions:
@@ -51,16 +51,16 @@ TestAndSet(addr *bool, order MemOrder) bool
 Clear(addr *bool, order MemOrder)
 
 // T is int32, int64, uint32, uint64
-AndInt32(addr *T, delta T, order MemOrder) T
+AndT(addr *T, delta T, order MemOrder) T
 
 // T is int32, int64, uint32, uint64
-OrInt32(addr *T, delta T, order MemOrder) T
+OrT(addr *T, delta T, order MemOrder) T
 
 // T is int32, int64, uint32, uint64
-XorInt32(addr *T, delta T, order MemOrder) T
+XorT(addr *T, delta T, order MemOrder) T
 
 // T is int32, int64, uint32, uint64
-NandInt32(addr *T, delta T, order MemOrder) T
+NandT(addr *T, delta T, order MemOrder) T
 ```
 
 _Copyright (c) 2018 Ivan Kavaliou_
