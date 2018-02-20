@@ -72,14 +72,12 @@ ATOMIC_LOAD(int64_t)
 ATOMIC_LOAD(uint32_t)
 ATOMIC_LOAD(uint64_t)
 ATOMIC_LOAD(uintptr_t)
-ATOMIC_LOAD(goptr_t)
 
 ATOMIC_STORE(int32_t)
 ATOMIC_STORE(int64_t)
 ATOMIC_STORE(uint32_t)
 ATOMIC_STORE(uint64_t)
 ATOMIC_STORE(uintptr_t)
-ATOMIC_STORE(goptr_t)
 
 ATOMIC_ADD_FETCH(int32_t)
 ATOMIC_ADD_FETCH(int64_t)
@@ -92,14 +90,12 @@ ATOMIC_COMPARE_EXCHANGE(int64_t)
 ATOMIC_COMPARE_EXCHANGE(uint32_t)
 ATOMIC_COMPARE_EXCHANGE(uint64_t)
 ATOMIC_COMPARE_EXCHANGE(uintptr_t)
-ATOMIC_COMPARE_EXCHANGE(goptr_t)
 
 ATOMIC_EXCHANGE(int32_t)
 ATOMIC_EXCHANGE(int64_t)
 ATOMIC_EXCHANGE(uint32_t)
 ATOMIC_EXCHANGE(uint64_t)
 ATOMIC_EXCHANGE(uintptr_t)
-ATOMIC_EXCHANGE(goptr_t)
 
 bool atomic_test_and_set(bool *ptr, enum MemOrder order) {
 	return __atomic_test_and_set(ptr, order);
@@ -194,10 +190,6 @@ func cptrUptr(addr *uintptr) *C.uintptr_t {
 	return (*C.uintptr_t)(unsafe.Pointer(addr))
 }
 
-func cptrPtr(addr *unsafe.Pointer) *C.goptr_t {
-	return (*C.goptr_t)(addr)
-}
-
 func cptrBool(addr *bool) *C._Bool {
 	return (*C._Bool)(unsafe.Pointer(addr))
 }
@@ -274,7 +266,7 @@ func CompareAndSwapPointer(addr *unsafe.Pointer, old, new unsafe.Pointer, weak b
 // Valid memory orders for orderSuccess: all.
 // Valid memory orders for orderFailure: cannot be OrderRelease nor OrderAcqRel. It also cannot be a stronger order than that specified by orderSuccess.
 func CompareAndSwap2Pointer(addr *unsafe.Pointer, old, new unsafe.Pointer, weak bool, orderSuccess MemOrder, orderFailure MemOrder) bool {
-	return (bool)(C.atomic_compare_exchange_goptr_t(cptrPtr(addr), cptrPtr(&old), (C.goptr_t)(new), (C._Bool)(weak), orderSuccess.asC(), orderFailure.asC()))
+	return CompareAndSwap2Uintptr((*uintptr)(unsafe.Pointer(addr)), uintptr(old), uintptr(new), weak, orderSuccess, orderFailure)
 }
 
 // CompareAndSwapUint32 executes the compare-and-swap operation for an uint32 value.
@@ -337,7 +329,7 @@ func LoadInt64(addr *int64, order MemOrder) int64 {
 // LoadPointer atomically loads *addr.
 // Valid memory orders: OrderRelaxed, OrderSeqCst, OrderAcquire and OrderConsume.
 func LoadPointer(addr *unsafe.Pointer, order MemOrder) unsafe.Pointer {
-	return (unsafe.Pointer)(C.atomic_load_goptr_t(cptrPtr(addr), order.asC()))
+	return unsafe.Pointer(LoadUintptr((*uintptr)(unsafe.Pointer(addr)), order))
 }
 
 // LoadUint32 atomically loads *addr.
@@ -373,7 +365,7 @@ func StoreInt64(addr *int64, val int64, order MemOrder) {
 // StorePointer atomically stores val into *addr.
 // Valid memory orders: OrderRelaxed, OrderSeqCst and OrderRelease.
 func StorePointer(addr *unsafe.Pointer, val unsafe.Pointer, order MemOrder) {
-	C.atomic_store_goptr_t(cptrPtr(addr), (C.goptr_t)(val), order.asC())
+	StoreUintptr((*uintptr)(unsafe.Pointer(addr)), uintptr(val), order)
 }
 
 // StoreUint32 atomically stores val into *addr.
@@ -409,7 +401,7 @@ func SwapInt64(addr *int64, new int64, order MemOrder) int64 {
 // SwapPointer atomically stores new into *addr and returns the previous *addr value.
 // Valid memory orders:  OrderRelaxed, OrderSeqCst, OrderAcquire, OrderRelease, and OrderAcqRel.
 func SwapPointer(addr *unsafe.Pointer, new unsafe.Pointer, order MemOrder) unsafe.Pointer {
-	return (unsafe.Pointer)(C.atomic_exchange_goptr_t(cptrPtr(addr), (C.goptr_t)(new), order.asC()))
+	return unsafe.Pointer(SwapUintptr((*uintptr)(unsafe.Pointer(addr)), uintptr(new), order))
 }
 
 // SwapUint32 atomically stores new into *addr and returns the previous *addr value.
