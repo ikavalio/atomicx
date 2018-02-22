@@ -3,11 +3,13 @@ atomicx
 
 Experimetal package that provides `sync/atomic` compatible API (except Value type) with configurable memory orders.
 
+__It can only work on gccgo!__
+
 All C++11 memory orders are supported: Relaxed, Consume, Acquire, Release, Acquire-Release and
 Sequential Consistency. All CASes can be optionally weak.
 
-Package is implemented as `cgo` function wrappers over compilers' built-in `__atomic_*` functions (https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html) that replaced 
-older `__sync_*` atomic functions. These functions approximately match the requirements for the C++11 memory model.
+Package calls compilers' built-in `__atomic_*` [functions](https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html) 
+that replaced older `__sync_*` atomic functions. These functions approximately match the requirements for the C++11 memory model.
 
 C compiler is required to build the package. GCC or clang under Linux/OS X that supports C++11/C11 should be enough.
 
@@ -25,42 +27,48 @@ Functions compatible with `sync/atomic` API:
 
 ```
 // T is int32, int64, uint32, uint64, uintptr
-AddT(addr *T, delta T, order MemOrder) T
+AddT(addr *T, delta T, order MemoryOrder) T
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-CompareAndSwapT(addr *T, old, new T, weak bool, order MemOrder) bool
+CompareAndSwapStrongT(addr *T, old, new T, order MemoryOrder) bool
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-LoadT(addr *T, order MemOrder) T
+LoadT(addr *T, order MemoryOrder) T
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-StoreT(addr *T, order MemOrder) T
+StoreT(addr *T, order MemoryOrder) T
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-SwapT(addr *T, new T, order MemOrder) T
+SwapT(addr *T, new T, order MemoryOrder) T
 ```
 
 Extensions:
 
 ```
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-CompareAndSwap2T(addr *T, old, new T, weak bool, orderSuccess MemOrder, orderFailure MemOrder) bool
+CompareAndSwapStrong2T(addr *T, old, new T, orderSuccess MemoryOrder, orderFailure MemoryOrder) bool
 
-TestAndSet(addr *bool, order MemOrder) bool
+// T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
+CompareAndSwapWeakT(addr *T, old, new T, order MemoryOrder) bool
 
-Clear(addr *bool, order MemOrder)
+// T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
+CompareAndSwapWeak2T(addr *T, old, new T, orderSuccess MemoryOrder, orderFailure MemoryOrder) bool
 
-// T is int32, int64, uint32, uint64
-AndT(addr *T, delta T, order MemOrder) T
+TestAndSet(addr *bool, order MemoryOrder) bool
 
-// T is int32, int64, uint32, uint64
-OrT(addr *T, delta T, order MemOrder) T
-
-// T is int32, int64, uint32, uint64
-XorT(addr *T, delta T, order MemOrder) T
+Clear(addr *bool, order MemoryOrder)
 
 // T is int32, int64, uint32, uint64
-NandT(addr *T, delta T, order MemOrder) T
+AndT(addr *T, delta T, order MemoryOrder) T
+
+// T is int32, int64, uint32, uint64
+OrT(addr *T, delta T, order MemoryOrder) T
+
+// T is int32, int64, uint32, uint64
+XorT(addr *T, delta T, order MemoryOrder) T
+
+// T is int32, int64, uint32, uint64
+NandT(addr *T, delta T, order MemoryOrder) T
 ```
 
 _Copyright (c) 2018 Ivan Kavaliou_
