@@ -1,7 +1,7 @@
 atomicx
 ===
 
-Experimetal package that provides `sync/atomic` compatible API (except Value type) with configurable memory orders.
+Experimetal package that provides `sync/atomic` compatible API (except Value type) with relaxed memory orders.
 
 __It can only work on gccgo!__
 
@@ -16,10 +16,8 @@ C compiler is required to build the package. GCC or clang under Linux/OS X that 
 __Important Notes__
 
 - Currently pointers are not compared to `nil` before deferencing. Since they are dereferenced within unmanaged C code it can
-cause segmentation faults, so please check your pointers manually before calling atomic functions.   
-- Atomic functions accept all memory orders as their arguments though only certain orders are valid for them. Passing incorrect
-memory order will not break function's atomicity, but can cause undesired side-effects or undefined behavior. Please check 
-documentation and make sure that correct memory orders are used in appropriate context.
+cause segmentation faults, so please check your pointers manually before calling atomic functions.
+- API consists of ~400 individual functions. Go file with C wrappers is created automatically by Python script (current solution).
 
 __Available Functions__
 
@@ -27,48 +25,52 @@ Functions compatible with `sync/atomic` API:
 
 ```
 // T is int32, int64, uint32, uint64, uintptr
-AddT(addr *T, delta T, order MemoryOrder) T
+// O can be any memory order
+AddTO(addr *T, delta T) T
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-CompareAndSwapStrongT(addr *T, old, new T, order MemoryOrder) bool
+// O1 can be any memory order
+// O2 can't be AcqRel or Release or stronger than O1
+CompareAndSwapStrongTO1O2(addr *T, old, new T) bool
+CompareAndSwapWeakTO1O2(addr *T, old, new T) bool
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-LoadT(addr *T, order MemoryOrder) T
+// O is Relaxed, Consume, Acquire or SeqCst
+LoadTO(addr *T) T
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-StoreT(addr *T, order MemoryOrder) T
+// O is Relaxed, Release or SeqCst
+StoreTO(addr *T) T
 
 // T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-SwapT(addr *T, new T, order MemoryOrder) T
+// O can't be Consume
+SwapTO(addr *T, new T) T
 ```
 
 Extensions:
 
 ```
-// T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-CompareAndSwapStrong2T(addr *T, old, new T, orderSuccess MemoryOrder, orderFailure MemoryOrder) bool
+// O can be any memory order
+TestAndSetO(addr *bool) bool
 
-// T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-CompareAndSwapWeakT(addr *T, old, new T, order MemoryOrder) bool
-
-// T is int32, int64, uint32, uint64, uintptr, unsafe.Pointer
-CompareAndSwapWeak2T(addr *T, old, new T, orderSuccess MemoryOrder, orderFailure MemoryOrder) bool
-
-TestAndSet(addr *bool, order MemoryOrder) bool
-
-Clear(addr *bool, order MemoryOrder)
+// O can be Relaxed, Release or SeqCst
+ClearO(addr *bool)
 
 // T is int32, int64, uint32, uint64
-AndT(addr *T, delta T, order MemoryOrder) T
+// O can be any memory order
+AndTO(addr *T, delta T) T
 
 // T is int32, int64, uint32, uint64
-OrT(addr *T, delta T, order MemoryOrder) T
+// O can be any memory order
+OrTO(addr *T, delta T) T
 
 // T is int32, int64, uint32, uint64
-XorT(addr *T, delta T, order MemoryOrder) T
+// O can be any memory order
+XorTO(addr *T, delta T) T
 
 // T is int32, int64, uint32, uint64
-NandT(addr *T, delta T, order MemoryOrder) T
+// O can be any memory order
+NandTO(addr *T, delta T) T
 ```
 
 _Copyright (c) 2018 Ivan Kavaliou_
