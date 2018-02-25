@@ -29,120 +29,113 @@ const (
 	magic64 = 0xdeddeadbeefbeef
 )
 
-var memOrders = [...]MemoryOrder{MemoryOrderRelaxed, MemoryOrderConsume, MemoryOrderAcquire, MemoryOrderRelease, MemoryOrderAcqRel, MemoryOrderSeqCst}
-
 // Do the 64-bit functions panic? If so, don't bother testing.
 var test64err = func() (err interface{}) {
 	defer func() {
 		err = recover()
 	}()
 	var x int64
-	for _, order := range memOrders {
-		AddInt64(&x, 1, order)
+	for _, f := range []func(*int64, int64) int64{
+		AddInt64Relaxed, AddInt64Consume, AddInt64Acquire, AddInt64Release, AddInt64AcqRel, AddInt64SeqCst} {
+		f(&x, 1)
 	}
 	return nil
 }()
 
-func testBinaryOpInt32(op func(int32, int32) int32, atomicFun func(*int32, int32, MemoryOrder) int32, t *testing.T) {
-	for _, order := range memOrders {
-		var x struct {
-			before int32
-			i      int32
-			after  int32
+func testBinaryOpInt32(op func(int32, int32) int32, atomicFun func(*int32, int32) int32, t *testing.T) {
+	var x struct {
+		before int32
+		i      int32
+		after  int32
+	}
+	x.before = magic32
+	x.after = magic32
+	var j int32
+	for delta := int32(1); delta+delta > delta; delta += delta {
+		k := atomicFun(&x.i, delta)
+		j = op(j, delta)
+		if x.i != j || k != j {
+			t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 		}
-		x.before = magic32
-		x.after = magic32
-		var j int32
-		for delta := int32(1); delta+delta > delta; delta += delta {
-			k := atomicFun(&x.i, delta, order)
-			j = op(j, delta)
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic32 || x.after != magic32 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
-		}
+	}
+	if x.before != magic32 || x.after != magic32 {
+		t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
 	}
 }
 
-func testBinaryOpUint32(op func(uint32, uint32) uint32, atomicFun func(*uint32, uint32, MemoryOrder) uint32, t *testing.T) {
-	for _, order := range memOrders {
-		var x struct {
-			before uint32
-			i      uint32
-			after  uint32
-		}
-		x.before = magic32
-		x.after = magic32
-		var j uint32
-		for delta := uint32(1); delta+delta > delta; delta += delta {
-			k := atomicFun(&x.i, delta, order)
-			j = op(j, delta)
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic32 || x.after != magic32 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
+func testBinaryOpUint32(op func(uint32, uint32) uint32, atomicFun func(*uint32, uint32) uint32, t *testing.T) {
+	var x struct {
+		before uint32
+		i      uint32
+		after  uint32
+	}
+	x.before = magic32
+	x.after = magic32
+	var j uint32
+	for delta := uint32(1); delta+delta > delta; delta += delta {
+		k := atomicFun(&x.i, delta)
+		j = op(j, delta)
+		if x.i != j || k != j {
+			t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 		}
 	}
+	if x.before != magic32 || x.after != magic32 {
+		t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
+	}
+
 }
 
-func testBinaryOpInt64(op func(int64, int64) int64, atomicFun func(*int64, int64, MemoryOrder) int64, t *testing.T) {
+func testBinaryOpInt64(op func(int64, int64) int64, atomicFun func(*int64, int64) int64, t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
-		var x struct {
-			before int64
-			i      int64
-			after  int64
+	var x struct {
+		before int64
+		i      int64
+		after  int64
+	}
+	x.before = magic64
+	x.after = magic64
+	var j int64
+	for delta := int64(1); delta+delta > delta; delta += delta {
+		k := atomicFun(&x.i, delta)
+		j = op(j, delta)
+		if x.i != j || k != j {
+			t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 		}
-		x.before = magic64
-		x.after = magic64
-		var j int64
-		for delta := int64(1); delta+delta > delta; delta += delta {
-			k := atomicFun(&x.i, delta, order)
-			j = op(j, delta)
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic64 || x.after != magic64 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic64, magic64)
-		}
+	}
+	if x.before != magic64 || x.after != magic64 {
+		t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic64, magic64)
 	}
 }
 
-func testBinaryOpUint64(op func(uint64, uint64) uint64, atomicFun func(*uint64, uint64, MemoryOrder) uint64, t *testing.T) {
+func testBinaryOpUint64(op func(uint64, uint64) uint64, atomicFun func(*uint64, uint64) uint64, t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
-		var x struct {
-			before uint64
-			i      uint64
-			after  uint64
+	var x struct {
+		before uint64
+		i      uint64
+		after  uint64
+	}
+	x.before = magic64
+	x.after = magic64
+	var j uint64
+	for delta := uint64(1); delta+delta > delta; delta += delta {
+		k := atomicFun(&x.i, delta)
+		j = op(j, delta)
+		if x.i != j || k != j {
+			t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 		}
-		x.before = magic64
-		x.after = magic64
-		var j uint64
-		for delta := uint64(1); delta+delta > delta; delta += delta {
-			k := atomicFun(&x.i, delta, order)
-			j = op(j, delta)
-			if x.i != j || k != j {
-				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
-			}
-		}
-		if x.before != magic64 || x.after != magic64 {
-			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic64, magic64)
-		}
+	}
+	if x.before != magic64 || x.after != magic64 {
+		t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic64, magic64)
 	}
 }
 
 func TestSwapInt32(t *testing.T) {
-	for _, order := range memOrders {
+	for _, swapFunc := range []func(*int32, int32) int32{
+		SwapInt32Relaxed, SwapInt32Acquire, SwapInt32Release, SwapInt32AcqRel, SwapInt32SeqCst} {
 		var x struct {
 			before int32
 			i      int32
@@ -152,7 +145,7 @@ func TestSwapInt32(t *testing.T) {
 		x.after = magic32
 		var j int32
 		for delta := int32(1); delta+delta > delta; delta += delta {
-			k := SwapInt32(&x.i, delta, order)
+			k := swapFunc(&x.i, delta)
 			if x.i != delta || k != j {
 				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 			}
@@ -165,7 +158,8 @@ func TestSwapInt32(t *testing.T) {
 }
 
 func TestSwapUint32(t *testing.T) {
-	for _, order := range memOrders {
+	for _, swapFunc := range []func(*uint32, uint32) uint32{
+		SwapUint32Relaxed, SwapUint32Acquire, SwapUint32Release, SwapUint32AcqRel, SwapUint32SeqCst} {
 		var x struct {
 			before uint32
 			i      uint32
@@ -175,7 +169,7 @@ func TestSwapUint32(t *testing.T) {
 		x.after = magic32
 		var j uint32
 		for delta := uint32(1); delta+delta > delta; delta += delta {
-			k := SwapUint32(&x.i, delta, order)
+			k := swapFunc(&x.i, delta)
 			if x.i != delta || k != j {
 				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 			}
@@ -191,7 +185,8 @@ func TestSwapInt64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, swapFunc := range []func(*int64, int64) int64{
+		SwapInt64Relaxed, SwapInt64Acquire, SwapInt64Release, SwapInt64AcqRel, SwapInt64SeqCst} {
 		var x struct {
 			before int64
 			i      int64
@@ -201,7 +196,7 @@ func TestSwapInt64(t *testing.T) {
 		x.after = magic64
 		var j int64
 		for delta := int64(1); delta+delta > delta; delta += delta {
-			k := SwapInt64(&x.i, delta, order)
+			k := swapFunc(&x.i, delta)
 			if x.i != delta || k != j {
 				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 			}
@@ -217,7 +212,8 @@ func TestSwapUint64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, swapFunc := range []func(*uint64, uint64) uint64{
+		SwapUint64Relaxed, SwapUint64Acquire, SwapUint64Release, SwapUint64AcqRel, SwapUint64SeqCst} {
 		var x struct {
 			before uint64
 			i      uint64
@@ -227,7 +223,7 @@ func TestSwapUint64(t *testing.T) {
 		x.after = magic64
 		var j uint64
 		for delta := uint64(1); delta+delta > delta; delta += delta {
-			k := SwapUint64(&x.i, delta, order)
+			k := swapFunc(&x.i, delta)
 			if x.i != delta || k != j {
 				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 			}
@@ -240,7 +236,8 @@ func TestSwapUint64(t *testing.T) {
 }
 
 func TestSwapUintptr(t *testing.T) {
-	for _, order := range memOrders {
+	for _, swapFunc := range []func(*uintptr, uintptr) uintptr{
+		SwapUintptrRelaxed, SwapUintptrAcquire, SwapUintptrRelease, SwapUintptrAcqRel, SwapUintptrSeqCst} {
 		var x struct {
 			before uintptr
 			i      uintptr
@@ -252,7 +249,7 @@ func TestSwapUintptr(t *testing.T) {
 		x.after = magicptr
 		var j uintptr
 		for delta := uintptr(1); delta+delta > delta; delta += delta {
-			k := SwapUintptr(&x.i, delta, order)
+			k := swapFunc(&x.i, delta)
 			if x.i != delta || k != j {
 				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 			}
@@ -265,7 +262,8 @@ func TestSwapUintptr(t *testing.T) {
 }
 
 func TestSwapPointer(t *testing.T) {
-	for _, order := range memOrders {
+	for _, swapFunc := range []func(*unsafe.Pointer, unsafe.Pointer) unsafe.Pointer{
+		SwapPointerRelaxed, SwapPointerAcquire, SwapPointerRelease, SwapPointerAcqRel, SwapPointerSeqCst} {
 		var x struct {
 			before uintptr
 			i      unsafe.Pointer
@@ -277,7 +275,7 @@ func TestSwapPointer(t *testing.T) {
 		x.after = magicptr
 		var j uintptr
 		for delta := uintptr(1 << 16); delta+delta > delta; delta += delta {
-			k := SwapPointer(&x.i, unsafe.Pointer(delta), order)
+			k := swapFunc(&x.i, unsafe.Pointer(delta))
 			if uintptr(x.i) != delta || uintptr(k) != j {
 				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
 			}
@@ -290,23 +288,36 @@ func TestSwapPointer(t *testing.T) {
 }
 
 func TestAddInt32(t *testing.T) {
-	testBinaryOpInt32(func(a int32, b int32) int32 { return a + b }, AddInt32, t)
+	for _, addFunc := range []func(*int32, int32) int32{
+		AddInt32Relaxed, AddInt32Consume, AddInt32Acquire, AddInt32Release, AddInt32AcqRel, AddInt32SeqCst} {
+		testBinaryOpInt32(func(a int32, b int32) int32 { return a + b }, addFunc, t)
+	}
 }
 
 func TestAddUint32(t *testing.T) {
-	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a + b }, AddUint32, t)
+	for _, addFunc := range []func(*uint32, uint32) uint32{
+		AddUint32Relaxed, AddUint32Consume, AddUint32Acquire, AddUint32Release, AddUint32AcqRel, AddUint32SeqCst} {
+		testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a + b }, addFunc, t)
+	}
 }
 
 func TestAddInt64(t *testing.T) {
-	testBinaryOpInt64(func(a int64, b int64) int64 { return a + b }, AddInt64, t)
+	for _, addFunc := range []func(*int64, int64) int64{
+		AddInt64Relaxed, AddInt64Consume, AddInt64Acquire, AddInt64Release, AddInt64AcqRel, AddInt64SeqCst} {
+		testBinaryOpInt64(func(a int64, b int64) int64 { return a + b }, addFunc, t)
+	}
 }
 
 func TestAddUint64(t *testing.T) {
-	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a + b }, AddUint64, t)
+	for _, addFunc := range []func(*uint64, uint64) uint64{
+		AddUint64Relaxed, AddUint64Consume, AddUint64Acquire, AddUint64Release, AddUint64AcqRel, AddUint64SeqCst} {
+		testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a + b }, addFunc, t)
+	}
 }
 
 func TestAddUintptr(t *testing.T) {
-	for _, order := range memOrders {
+	for _, addFunc := range []func(*uintptr, uintptr) uintptr{
+		AddUintptrRelaxed, AddUintptrConsume, AddUintptrAcquire, AddUintptrRelease, AddUintptrAcqRel, AddUintptrSeqCst} {
 		var x struct {
 			before uintptr
 			i      uintptr
@@ -318,7 +329,7 @@ func TestAddUintptr(t *testing.T) {
 		x.after = magicptr
 		var j uintptr
 		for delta := uintptr(1); delta+delta > delta; delta += delta {
-			k := AddUintptr(&x.i, delta, order)
+			k := addFunc(&x.i, delta)
 			j += delta
 			if x.i != j || k != j {
 				t.Fatalf("delta=%d i=%d j=%d k=%d", delta, x.i, j, k)
@@ -330,8 +341,14 @@ func TestAddUintptr(t *testing.T) {
 	}
 }
 
-func TestCompareAndSwapInt32(t *testing.T) {
-	for _, order := range memOrders {
+func TestCompareAndSwapStrongInt32(t *testing.T) {
+	for _, casFunc := range []func(*int32, int32, int32) bool{
+		CompareAndSwapStrongInt32RelaxedRelaxed,
+		CompareAndSwapStrongInt32ConsumeRelaxed, CompareAndSwapStrongInt32ConsumeConsume,
+		CompareAndSwapStrongInt32AcquireRelaxed, CompareAndSwapStrongInt32AcquireConsume, CompareAndSwapStrongInt32AcquireAcquire,
+		CompareAndSwapStrongInt32ReleaseRelaxed, CompareAndSwapStrongInt32ReleaseConsume, CompareAndSwapStrongInt32ReleaseAcquire,
+		CompareAndSwapStrongInt32AcqRelRelaxed, CompareAndSwapStrongInt32AcqRelConsume, CompareAndSwapStrongInt32AcqRelAcquire,
+		CompareAndSwapStrongInt32SeqCstRelaxed, CompareAndSwapStrongInt32SeqCstConsume, CompareAndSwapStrongInt32SeqCstAcquire, CompareAndSwapStrongInt32SeqCstSeqCst} {
 		var x struct {
 			before int32
 			i      int32
@@ -340,21 +357,19 @@ func TestCompareAndSwapInt32(t *testing.T) {
 		x.before = magic32
 		x.after = magic32
 		for val := int32(1); val+val > val; val += val {
-			for _, casFunc := range []func(*int32, int32, int32, MemoryOrder) bool{CompareAndSwapStrongInt32, CompareAndSwapWeakInt32} {
-				x.i = val
-				if !casFunc(&x.i, val, val+1, order) {
-					t.Fatalf("should have swapped %#x %#x", val, val+1)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
-				x.i = val + 1
-				if casFunc(&x.i, val, val+2, order) {
-					t.Fatalf("should not have swapped %#x %#x", val, val+2)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
 		}
 		if x.before != magic32 || x.after != magic32 {
@@ -363,43 +378,51 @@ func TestCompareAndSwapInt32(t *testing.T) {
 	}
 }
 
-func TestCompareAndSwap2Int32(t *testing.T) {
-	for _, order1 := range memOrders {
-		for _, order2 := range memOrders {
-			var x struct {
-				before int32
-				i      int32
-				after  int32
+func TestCompareAndSwapWeakInt32(t *testing.T) {
+	for _, casFunc := range []func(*int32, int32, int32) bool{
+		CompareAndSwapWeakInt32RelaxedRelaxed,
+		CompareAndSwapWeakInt32ConsumeRelaxed, CompareAndSwapWeakInt32ConsumeConsume,
+		CompareAndSwapWeakInt32AcquireRelaxed, CompareAndSwapWeakInt32AcquireConsume, CompareAndSwapWeakInt32AcquireAcquire,
+		CompareAndSwapWeakInt32ReleaseRelaxed, CompareAndSwapWeakInt32ReleaseConsume, CompareAndSwapWeakInt32ReleaseAcquire,
+		CompareAndSwapWeakInt32AcqRelRelaxed, CompareAndSwapWeakInt32AcqRelConsume, CompareAndSwapWeakInt32AcqRelAcquire,
+		CompareAndSwapWeakInt32SeqCstRelaxed, CompareAndSwapWeakInt32SeqCstConsume, CompareAndSwapWeakInt32SeqCstAcquire, CompareAndSwapWeakInt32SeqCstSeqCst} {
+		var x struct {
+			before int32
+			i      int32
+			after  int32
+		}
+		x.before = magic32
+		x.after = magic32
+		for val := int32(1); val+val > val; val += val {
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
 			}
-			x.before = magic32
-			x.after = magic32
-			for val := int32(1); val+val > val; val += val {
-				for _, casFunc := range []func(*int32, int32, int32, MemoryOrder, MemoryOrder) bool{CompareAndSwapStrong2Int32, CompareAndSwapWeak2Int32} {
-					x.i = val
-					if !casFunc(&x.i, val, val+1, order1, order2) {
-						t.Fatalf("should have swapped %#x %#x", val, val+1)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-					x.i = val + 1
-					if casFunc(&x.i, val, val+2, order1, order2) {
-						t.Fatalf("should not have swapped %#x %#x", val, val+2)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-				}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
-			if x.before != magic32 || x.after != magic32 {
-				t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
 			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+		}
+		if x.before != magic32 || x.after != magic32 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
 		}
 	}
 }
 
-func TestCompareAndSwapUint32(t *testing.T) {
-	for _, order := range memOrders {
+func TestCompareAndSwapStrongUint32(t *testing.T) {
+	for _, casFunc := range []func(*uint32, uint32, uint32) bool{
+		CompareAndSwapStrongUint32RelaxedRelaxed,
+		CompareAndSwapStrongUint32ConsumeRelaxed, CompareAndSwapStrongUint32ConsumeConsume,
+		CompareAndSwapStrongUint32AcquireRelaxed, CompareAndSwapStrongUint32AcquireConsume, CompareAndSwapStrongUint32AcquireAcquire,
+		CompareAndSwapStrongUint32ReleaseRelaxed, CompareAndSwapStrongUint32ReleaseConsume, CompareAndSwapStrongUint32ReleaseAcquire,
+		CompareAndSwapStrongUint32AcqRelRelaxed, CompareAndSwapStrongUint32AcqRelConsume, CompareAndSwapStrongUint32AcqRelAcquire,
+		CompareAndSwapStrongUint32SeqCstRelaxed, CompareAndSwapStrongUint32SeqCstConsume, CompareAndSwapStrongUint32SeqCstAcquire, CompareAndSwapStrongUint32SeqCstSeqCst} {
 		var x struct {
 			before uint32
 			i      uint32
@@ -408,21 +431,19 @@ func TestCompareAndSwapUint32(t *testing.T) {
 		x.before = magic32
 		x.after = magic32
 		for val := uint32(1); val+val > val; val += val {
-			for _, casFunc := range []func(*uint32, uint32, uint32, MemoryOrder) bool{CompareAndSwapStrongUint32, CompareAndSwapWeakUint32} {
-				x.i = val
-				if !casFunc(&x.i, val, val+1, order) {
-					t.Fatalf("should have swapped %#x %#x", val, val+1)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
-				x.i = val + 1
-				if casFunc(&x.i, val, val+2, order) {
-					t.Fatalf("should not have swapped %#x %#x", val, val+2)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
 		}
 		if x.before != magic32 || x.after != magic32 {
@@ -431,46 +452,54 @@ func TestCompareAndSwapUint32(t *testing.T) {
 	}
 }
 
-func TestCompareAndSwap2Uint32(t *testing.T) {
-	for _, order1 := range memOrders {
-		for _, order2 := range memOrders {
-			var x struct {
-				before uint32
-				i      uint32
-				after  uint32
+func TestCompareAndSwapWeakUint32(t *testing.T) {
+	for _, casFunc := range []func(*uint32, uint32, uint32) bool{
+		CompareAndSwapWeakUint32RelaxedRelaxed,
+		CompareAndSwapWeakUint32ConsumeRelaxed, CompareAndSwapWeakUint32ConsumeConsume,
+		CompareAndSwapWeakUint32AcquireRelaxed, CompareAndSwapWeakUint32AcquireConsume, CompareAndSwapWeakUint32AcquireAcquire,
+		CompareAndSwapWeakUint32ReleaseRelaxed, CompareAndSwapWeakUint32ReleaseConsume, CompareAndSwapWeakUint32ReleaseAcquire,
+		CompareAndSwapWeakUint32AcqRelRelaxed, CompareAndSwapWeakUint32AcqRelConsume, CompareAndSwapWeakUint32AcqRelAcquire,
+		CompareAndSwapWeakUint32SeqCstRelaxed, CompareAndSwapWeakUint32SeqCstConsume, CompareAndSwapWeakUint32SeqCstAcquire, CompareAndSwapWeakUint32SeqCstSeqCst} {
+		var x struct {
+			before uint32
+			i      uint32
+			after  uint32
+		}
+		x.before = magic32
+		x.after = magic32
+		for val := uint32(1); val+val > val; val += val {
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
 			}
-			x.before = magic32
-			x.after = magic32
-			for val := uint32(1); val+val > val; val += val {
-				for _, casFunc := range []func(*uint32, uint32, uint32, MemoryOrder, MemoryOrder) bool{CompareAndSwapStrong2Uint32, CompareAndSwapWeak2Uint32} {
-					x.i = val
-					if !casFunc(&x.i, val, val+1, order1, order2) {
-						t.Fatalf("should have swapped %#x %#x", val, val+1)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-					x.i = val + 1
-					if casFunc(&x.i, val, val+2, order1, order2) {
-						t.Fatalf("should not have swapped %#x %#x", val, val+2)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-				}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
-			if x.before != magic32 || x.after != magic32 {
-				t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
 			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+		}
+		if x.before != magic32 || x.after != magic32 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magic32, magic32)
 		}
 	}
 }
 
-func TestCompareAndSwapInt64(t *testing.T) {
+func TestCompareAndSwapStrongInt64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, casFunc := range []func(*int64, int64, int64) bool{
+		CompareAndSwapStrongInt64RelaxedRelaxed,
+		CompareAndSwapStrongInt64ConsumeRelaxed, CompareAndSwapStrongInt64ConsumeConsume,
+		CompareAndSwapStrongInt64AcquireRelaxed, CompareAndSwapStrongInt64AcquireConsume, CompareAndSwapStrongInt64AcquireAcquire,
+		CompareAndSwapStrongInt64ReleaseRelaxed, CompareAndSwapStrongInt64ReleaseConsume, CompareAndSwapStrongInt64ReleaseAcquire,
+		CompareAndSwapStrongInt64AcqRelRelaxed, CompareAndSwapStrongInt64AcqRelConsume, CompareAndSwapStrongInt64AcqRelAcquire,
+		CompareAndSwapStrongInt64SeqCstRelaxed, CompareAndSwapStrongInt64SeqCstConsume, CompareAndSwapStrongInt64SeqCstAcquire, CompareAndSwapStrongInt64SeqCstSeqCst} {
 		var x struct {
 			before int64
 			i      int64
@@ -479,21 +508,19 @@ func TestCompareAndSwapInt64(t *testing.T) {
 		x.before = magic64
 		x.after = magic64
 		for val := int64(1); val+val > val; val += val {
-			for _, casFunc := range []func(*int64, int64, int64, MemoryOrder) bool{CompareAndSwapStrongInt64, CompareAndSwapWeakInt64} {
-				x.i = val
-				if !casFunc(&x.i, val, val+1, order) {
-					t.Fatalf("should have swapped %#x %#x", val, val+1)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
-				x.i = val + 1
-				if casFunc(&x.i, val, val+2, order) {
-					t.Fatalf("should not have swapped %#x %#x", val, val+2)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
 		}
 		if x.before != magic64 || x.after != magic64 {
@@ -502,49 +529,57 @@ func TestCompareAndSwapInt64(t *testing.T) {
 	}
 }
 
-func TestCompareAndSwap2Int64(t *testing.T) {
+func TestCompareAndSwapWeakInt64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order1 := range memOrders {
-		for _, order2 := range memOrders {
-			var x struct {
-				before int64
-				i      int64
-				after  int64
+	for _, casFunc := range []func(*int64, int64, int64) bool{
+		CompareAndSwapWeakInt64RelaxedRelaxed,
+		CompareAndSwapWeakInt64ConsumeRelaxed, CompareAndSwapWeakInt64ConsumeConsume,
+		CompareAndSwapWeakInt64AcquireRelaxed, CompareAndSwapWeakInt64AcquireConsume, CompareAndSwapWeakInt64AcquireAcquire,
+		CompareAndSwapWeakInt64ReleaseRelaxed, CompareAndSwapWeakInt64ReleaseConsume, CompareAndSwapWeakInt64ReleaseAcquire,
+		CompareAndSwapWeakInt64AcqRelRelaxed, CompareAndSwapWeakInt64AcqRelConsume, CompareAndSwapWeakInt64AcqRelAcquire,
+		CompareAndSwapWeakInt64SeqCstRelaxed, CompareAndSwapWeakInt64SeqCstConsume, CompareAndSwapWeakInt64SeqCstAcquire, CompareAndSwapWeakInt64SeqCstSeqCst} {
+		var x struct {
+			before int64
+			i      int64
+			after  int64
+		}
+		x.before = magic64
+		x.after = magic64
+		for val := int64(1); val+val > val; val += val {
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
 			}
-			x.before = magic64
-			x.after = magic64
-			for val := int64(1); val+val > val; val += val {
-				for _, casFunc := range []func(*int64, int64, int64, MemoryOrder, MemoryOrder) bool{CompareAndSwapStrong2Int64, CompareAndSwapWeak2Int64} {
-					x.i = val
-					if !casFunc(&x.i, val, val+1, order1, order2) {
-						t.Fatalf("should have swapped %#x %#x", val, val+1)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-					x.i = val + 1
-					if casFunc(&x.i, val, val+2, order1, order2) {
-						t.Fatalf("should not have swapped %#x %#x", val, val+2)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-				}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
-			if x.before != magic64 || x.after != magic64 {
-				t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, uint64(magic64), uint64(magic64))
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
 			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+		}
+		if x.before != magic64 || x.after != magic64 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, uint64(magic64), uint64(magic64))
 		}
 	}
 }
 
-func TestCompareAndSwapUint64(t *testing.T) {
+func TestCompareAndSwapStrongUint64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, casFunc := range []func(*uint64, uint64, uint64) bool{
+		CompareAndSwapStrongUint64RelaxedRelaxed,
+		CompareAndSwapStrongUint64ConsumeRelaxed, CompareAndSwapStrongUint64ConsumeConsume,
+		CompareAndSwapStrongUint64AcquireRelaxed, CompareAndSwapStrongUint64AcquireConsume, CompareAndSwapStrongUint64AcquireAcquire,
+		CompareAndSwapStrongUint64ReleaseRelaxed, CompareAndSwapStrongUint64ReleaseConsume, CompareAndSwapStrongUint64ReleaseAcquire,
+		CompareAndSwapStrongUint64AcqRelRelaxed, CompareAndSwapStrongUint64AcqRelConsume, CompareAndSwapStrongUint64AcqRelAcquire,
+		CompareAndSwapStrongUint64SeqCstRelaxed, CompareAndSwapStrongUint64SeqCstConsume, CompareAndSwapStrongUint64SeqCstAcquire, CompareAndSwapStrongUint64SeqCstSeqCst} {
 		var x struct {
 			before uint64
 			i      uint64
@@ -553,21 +588,19 @@ func TestCompareAndSwapUint64(t *testing.T) {
 		x.before = magic64
 		x.after = magic64
 		for val := uint64(1); val+val > val; val += val {
-			for _, casFunc := range []func(*uint64, uint64, uint64, MemoryOrder) bool{CompareAndSwapStrongUint64, CompareAndSwapWeakUint64} {
-				x.i = val
-				if !casFunc(&x.i, val, val+1, order) {
-					t.Fatalf("should have swapped %#x %#x", val, val+1)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
-				x.i = val + 1
-				if casFunc(&x.i, val, val+2, order) {
-					t.Fatalf("should not have swapped %#x %#x", val, val+2)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
 		}
 		if x.before != magic64 || x.after != magic64 {
@@ -576,46 +609,54 @@ func TestCompareAndSwapUint64(t *testing.T) {
 	}
 }
 
-func TestCompareAndSwap2Uint64(t *testing.T) {
+func TestCompareAndSwapWeakUint64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order1 := range memOrders {
-		for _, order2 := range memOrders {
-			var x struct {
-				before uint64
-				i      uint64
-				after  uint64
+	for _, casFunc := range []func(*uint64, uint64, uint64) bool{
+		CompareAndSwapWeakUint64RelaxedRelaxed,
+		CompareAndSwapWeakUint64ConsumeRelaxed, CompareAndSwapWeakUint64ConsumeConsume,
+		CompareAndSwapWeakUint64AcquireRelaxed, CompareAndSwapWeakUint64AcquireConsume, CompareAndSwapWeakUint64AcquireAcquire,
+		CompareAndSwapWeakUint64ReleaseRelaxed, CompareAndSwapWeakUint64ReleaseConsume, CompareAndSwapWeakUint64ReleaseAcquire,
+		CompareAndSwapWeakUint64AcqRelRelaxed, CompareAndSwapWeakUint64AcqRelConsume, CompareAndSwapWeakUint64AcqRelAcquire,
+		CompareAndSwapWeakUint64SeqCstRelaxed, CompareAndSwapWeakUint64SeqCstConsume, CompareAndSwapWeakUint64SeqCstAcquire, CompareAndSwapWeakUint64SeqCstSeqCst} {
+		var x struct {
+			before uint64
+			i      uint64
+			after  uint64
+		}
+		x.before = magic64
+		x.after = magic64
+		for val := uint64(1); val+val > val; val += val {
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
 			}
-			x.before = magic64
-			x.after = magic64
-			for val := uint64(1); val+val > val; val += val {
-				for _, casFunc := range []func(*uint64, uint64, uint64, MemoryOrder, MemoryOrder) bool{CompareAndSwapStrong2Uint64, CompareAndSwapWeak2Uint64} {
-					x.i = val
-					if !casFunc(&x.i, val, val+1, order1, order2) {
-						t.Fatalf("should have swapped %#x %#x", val, val+1)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-					x.i = val + 1
-					if casFunc(&x.i, val, val+2, order1, order2) {
-						t.Fatalf("should not have swapped %#x %#x", val, val+2)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-				}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
-			if x.before != magic64 || x.after != magic64 {
-				t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, uint64(magic64), uint64(magic64))
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
 			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+		}
+		if x.before != magic64 || x.after != magic64 {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, uint64(magic64), uint64(magic64))
 		}
 	}
 }
 
-func TestCompareAndSwapUintptr(t *testing.T) {
-	for _, order := range memOrders {
+func TestCompareAndSwapStrongUintptr(t *testing.T) {
+	for _, casFunc := range []func(*uintptr, uintptr, uintptr) bool{
+		CompareAndSwapStrongUintptrRelaxedRelaxed,
+		CompareAndSwapStrongUintptrConsumeRelaxed, CompareAndSwapStrongUintptrConsumeConsume,
+		CompareAndSwapStrongUintptrAcquireRelaxed, CompareAndSwapStrongUintptrAcquireConsume, CompareAndSwapStrongUintptrAcquireAcquire,
+		CompareAndSwapStrongUintptrReleaseRelaxed, CompareAndSwapStrongUintptrReleaseConsume, CompareAndSwapStrongUintptrReleaseAcquire,
+		CompareAndSwapStrongUintptrAcqRelRelaxed, CompareAndSwapStrongUintptrAcqRelConsume, CompareAndSwapStrongUintptrAcqRelAcquire,
+		CompareAndSwapStrongUintptrSeqCstRelaxed, CompareAndSwapStrongUintptrSeqCstConsume, CompareAndSwapStrongUintptrSeqCstAcquire, CompareAndSwapStrongUintptrSeqCstSeqCst} {
 		var x struct {
 			before uintptr
 			i      uintptr
@@ -626,21 +667,19 @@ func TestCompareAndSwapUintptr(t *testing.T) {
 		x.before = magicptr
 		x.after = magicptr
 		for val := uintptr(1); val+val > val; val += val {
-			for _, casFunc := range []func(*uintptr, uintptr, uintptr, MemoryOrder) bool{CompareAndSwapStrongUintptr, CompareAndSwapWeakUintptr} {
-				x.i = val
-				if !casFunc(&x.i, val, val+1, order) {
-					t.Fatalf("should have swapped %#x %#x", val, val+1)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
-				x.i = val + 1
-				if casFunc(&x.i, val, val+2, order) {
-					t.Fatalf("should not have swapped %#x %#x", val, val+2)
-				}
-				if x.i != val+1 {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
+			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
 		}
 		if x.before != magicptr || x.after != magicptr {
@@ -649,45 +688,53 @@ func TestCompareAndSwapUintptr(t *testing.T) {
 	}
 }
 
-func TestCompareAndSwap2Uintptr(t *testing.T) {
-	for _, order1 := range memOrders {
-		for _, order2 := range memOrders {
-			var x struct {
-				before uintptr
-				i      uintptr
-				after  uintptr
+func TestCompareAndSwapWeakUintptr(t *testing.T) {
+	for _, casFunc := range []func(*uintptr, uintptr, uintptr) bool{
+		CompareAndSwapWeakUintptrRelaxedRelaxed,
+		CompareAndSwapWeakUintptrConsumeRelaxed, CompareAndSwapWeakUintptrConsumeConsume,
+		CompareAndSwapWeakUintptrAcquireRelaxed, CompareAndSwapWeakUintptrAcquireConsume, CompareAndSwapWeakUintptrAcquireAcquire,
+		CompareAndSwapWeakUintptrReleaseRelaxed, CompareAndSwapWeakUintptrReleaseConsume, CompareAndSwapWeakUintptrReleaseAcquire,
+		CompareAndSwapWeakUintptrAcqRelRelaxed, CompareAndSwapWeakUintptrAcqRelConsume, CompareAndSwapWeakUintptrAcqRelAcquire,
+		CompareAndSwapWeakUintptrSeqCstRelaxed, CompareAndSwapWeakUintptrSeqCstConsume, CompareAndSwapWeakUintptrSeqCstAcquire, CompareAndSwapWeakUintptrSeqCstSeqCst} {
+		var x struct {
+			before uintptr
+			i      uintptr
+			after  uintptr
+		}
+		var m uint64 = magic64
+		magicptr := uintptr(m)
+		x.before = magicptr
+		x.after = magicptr
+		for val := uintptr(1); val+val > val; val += val {
+			x.i = val
+			if !casFunc(&x.i, val, val+1) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
 			}
-			var m uint64 = magic64
-			magicptr := uintptr(m)
-			x.before = magicptr
-			x.after = magicptr
-			for val := uintptr(1); val+val > val; val += val {
-				for _, casFunc := range []func(*uintptr, uintptr, uintptr, MemoryOrder, MemoryOrder) bool{CompareAndSwapStrong2Uintptr, CompareAndSwapWeak2Uintptr} {
-					x.i = val
-					if !casFunc(&x.i, val, val+1, order1, order2) {
-						t.Fatalf("should have swapped %#x %#x", val, val+1)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-					x.i = val + 1
-					if casFunc(&x.i, val, val+2, order1, order2) {
-						t.Fatalf("should not have swapped %#x %#x", val, val+2)
-					}
-					if x.i != val+1 {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-				}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
-			if x.before != magicptr || x.after != magicptr {
-				t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magicptr, magicptr)
+			x.i = val + 1
+			if casFunc(&x.i, val, val+2) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
 			}
+			if x.i != val+1 {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+		}
+		if x.before != magicptr || x.after != magicptr {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magicptr, magicptr)
 		}
 	}
 }
 
-func TestCompareAndSwapPointer(t *testing.T) {
-	for _, order := range memOrders {
+func TestCompareAndSwapStrongPointer(t *testing.T) {
+	for _, casFunc := range []func(*unsafe.Pointer, unsafe.Pointer, unsafe.Pointer) bool{
+		CompareAndSwapStrongPointerRelaxedRelaxed,
+		CompareAndSwapStrongPointerConsumeRelaxed, CompareAndSwapStrongPointerConsumeConsume,
+		CompareAndSwapStrongPointerAcquireRelaxed, CompareAndSwapStrongPointerAcquireConsume, CompareAndSwapStrongPointerAcquireAcquire,
+		CompareAndSwapStrongPointerReleaseRelaxed, CompareAndSwapStrongPointerReleaseConsume, CompareAndSwapStrongPointerReleaseAcquire,
+		CompareAndSwapStrongPointerAcqRelRelaxed, CompareAndSwapStrongPointerAcqRelConsume, CompareAndSwapStrongPointerAcqRelAcquire,
+		CompareAndSwapStrongPointerSeqCstRelaxed, CompareAndSwapStrongPointerSeqCstConsume, CompareAndSwapStrongPointerSeqCstAcquire, CompareAndSwapStrongPointerSeqCstSeqCst} {
 		var x struct {
 			before uintptr
 			i      unsafe.Pointer
@@ -698,22 +745,21 @@ func TestCompareAndSwapPointer(t *testing.T) {
 		x.before = magicptr
 		x.after = magicptr
 		for val := uintptr(1 << 16); val+val > val; val += val {
-			for _, casFunc := range []func(*unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, MemoryOrder) bool{CompareAndSwapStrongPointer, CompareAndSwapWeakPointer} {
-				x.i = unsafe.Pointer(val)
-				if !casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+1), order) {
-					t.Fatalf("should have swapped %#x %#x", val, val+1)
-				}
-				if x.i != unsafe.Pointer(val+1) {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
-				x.i = unsafe.Pointer(val + 1)
-				if casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+2), order) {
-					t.Fatalf("should not have swapped %#x %#x", val, val+2)
-				}
-				if x.i != unsafe.Pointer(val+1) {
-					t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-				}
+			x.i = unsafe.Pointer(val)
+			if !casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+1)) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
 			}
+			if x.i != unsafe.Pointer(val+1) {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+			x.i = unsafe.Pointer(val + 1)
+			if casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+2)) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
+			}
+			if x.i != unsafe.Pointer(val+1) {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+
 		}
 		if x.before != magicptr || x.after != magicptr {
 			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magicptr, magicptr)
@@ -721,45 +767,49 @@ func TestCompareAndSwapPointer(t *testing.T) {
 	}
 }
 
-func TestCompareAndSwap2Pointer(t *testing.T) {
-	for _, order1 := range memOrders {
-		for _, order2 := range memOrders {
-			var x struct {
-				before uintptr
-				i      unsafe.Pointer
-				after  uintptr
+func TestCompareAndSwapWeakPointer(t *testing.T) {
+	for _, casFunc := range []func(*unsafe.Pointer, unsafe.Pointer, unsafe.Pointer) bool{
+		CompareAndSwapWeakPointerRelaxedRelaxed,
+		CompareAndSwapWeakPointerConsumeRelaxed, CompareAndSwapWeakPointerConsumeConsume,
+		CompareAndSwapWeakPointerAcquireRelaxed, CompareAndSwapWeakPointerAcquireConsume, CompareAndSwapWeakPointerAcquireAcquire,
+		CompareAndSwapWeakPointerReleaseRelaxed, CompareAndSwapWeakPointerReleaseConsume, CompareAndSwapWeakPointerReleaseAcquire,
+		CompareAndSwapWeakPointerAcqRelRelaxed, CompareAndSwapWeakPointerAcqRelConsume, CompareAndSwapWeakPointerAcqRelAcquire,
+		CompareAndSwapWeakPointerSeqCstRelaxed, CompareAndSwapWeakPointerSeqCstConsume, CompareAndSwapWeakPointerSeqCstAcquire, CompareAndSwapWeakPointerSeqCstSeqCst} {
+		var x struct {
+			before uintptr
+			i      unsafe.Pointer
+			after  uintptr
+		}
+		var m uint64 = magic64
+		magicptr := uintptr(m)
+		x.before = magicptr
+		x.after = magicptr
+		for val := uintptr(1 << 16); val+val > val; val += val {
+			x.i = unsafe.Pointer(val)
+			if !casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+1)) {
+				t.Fatalf("should have swapped %#x %#x", val, val+1)
 			}
-			var m uint64 = magic64
-			magicptr := uintptr(m)
-			x.before = magicptr
-			x.after = magicptr
-			for val := uintptr(1 << 16); val+val > val; val += val {
-				for _, casFunc := range []func(*unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, MemoryOrder, MemoryOrder) bool{CompareAndSwapStrong2Pointer, CompareAndSwapWeak2Pointer} {
-					x.i = unsafe.Pointer(val)
-					if !casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+1), order1, order2) {
-						t.Fatalf("should have swapped %#x %#x", val, val+1)
-					}
-					if x.i != unsafe.Pointer(val+1) {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-					x.i = unsafe.Pointer(val + 1)
-					if casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+2), order1, order2) {
-						t.Fatalf("should not have swapped %#x %#x", val, val+2)
-					}
-					if x.i != unsafe.Pointer(val+1) {
-						t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
-					}
-				}
+			if x.i != unsafe.Pointer(val+1) {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
 			}
-			if x.before != magicptr || x.after != magicptr {
-				t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magicptr, magicptr)
+			x.i = unsafe.Pointer(val + 1)
+			if casFunc(&x.i, unsafe.Pointer(val), unsafe.Pointer(val+2)) {
+				t.Fatalf("should not have swapped %#x %#x", val, val+2)
 			}
+			if x.i != unsafe.Pointer(val+1) {
+				t.Fatalf("wrong x.i after swap: x.i=%#x val+1=%#x", x.i, val+1)
+			}
+
+		}
+		if x.before != magicptr || x.after != magicptr {
+			t.Fatalf("wrong magic: %#x _ %#x != %#x _ %#x", x.before, x.after, magicptr, magicptr)
 		}
 	}
 }
 
 func TestLoadInt32(t *testing.T) {
-	for _, order := range memOrders {
+	for _, loadFunc := range []func(*int32) int32{
+		LoadInt32Relaxed, LoadInt32Consume, LoadInt32Acquire, LoadInt32SeqCst} {
 		var x struct {
 			before int32
 			i      int32
@@ -768,7 +818,7 @@ func TestLoadInt32(t *testing.T) {
 		x.before = magic32
 		x.after = magic32
 		for delta := int32(1); delta+delta > delta; delta += delta {
-			k := LoadInt32(&x.i, order)
+			k := loadFunc(&x.i)
 			if k != x.i {
 				t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
 			}
@@ -781,7 +831,8 @@ func TestLoadInt32(t *testing.T) {
 }
 
 func TestLoadUint32(t *testing.T) {
-	for _, order := range memOrders {
+	for _, loadFunc := range []func(*uint32) uint32{
+		LoadUint32Relaxed, LoadUint32Consume, LoadUint32Acquire, LoadUint32SeqCst} {
 		var x struct {
 			before uint32
 			i      uint32
@@ -790,7 +841,7 @@ func TestLoadUint32(t *testing.T) {
 		x.before = magic32
 		x.after = magic32
 		for delta := uint32(1); delta+delta > delta; delta += delta {
-			k := LoadUint32(&x.i, order)
+			k := loadFunc(&x.i)
 			if k != x.i {
 				t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
 			}
@@ -806,7 +857,8 @@ func TestLoadInt64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, loadFunc := range []func(*int64) int64{
+		LoadInt64Relaxed, LoadInt64Consume, LoadInt64Acquire, LoadInt64SeqCst} {
 		var x struct {
 			before int64
 			i      int64
@@ -815,7 +867,7 @@ func TestLoadInt64(t *testing.T) {
 		x.before = magic64
 		x.after = magic64
 		for delta := int64(1); delta+delta > delta; delta += delta {
-			k := LoadInt64(&x.i, order)
+			k := loadFunc(&x.i)
 			if k != x.i {
 				t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
 			}
@@ -831,7 +883,8 @@ func TestLoadUint64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, loadFunc := range []func(*uint64) uint64{
+		LoadUint64Relaxed, LoadUint64Consume, LoadUint64Acquire, LoadUint64SeqCst} {
 		var x struct {
 			before uint64
 			i      uint64
@@ -840,7 +893,7 @@ func TestLoadUint64(t *testing.T) {
 		x.before = magic64
 		x.after = magic64
 		for delta := uint64(1); delta+delta > delta; delta += delta {
-			k := LoadUint64(&x.i, order)
+			k := loadFunc(&x.i)
 			if k != x.i {
 				t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
 			}
@@ -853,7 +906,8 @@ func TestLoadUint64(t *testing.T) {
 }
 
 func TestLoadUintptr(t *testing.T) {
-	for _, order := range memOrders {
+	for _, loadFunc := range []func(*uintptr) uintptr{
+		LoadUintptrRelaxed, LoadUintptrConsume, LoadUintptrAcquire, LoadUintptrSeqCst} {
 		var x struct {
 			before uintptr
 			i      uintptr
@@ -864,7 +918,7 @@ func TestLoadUintptr(t *testing.T) {
 		x.before = magicptr
 		x.after = magicptr
 		for delta := uintptr(1); delta+delta > delta; delta += delta {
-			k := LoadUintptr(&x.i, order)
+			k := loadFunc(&x.i)
 			if k != x.i {
 				t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
 			}
@@ -877,7 +931,8 @@ func TestLoadUintptr(t *testing.T) {
 }
 
 func TestLoadPointer(t *testing.T) {
-	for _, order := range memOrders {
+	for _, loadFunc := range []func(*unsafe.Pointer) unsafe.Pointer{
+		LoadPointerRelaxed, LoadPointerConsume, LoadPointerAcquire, LoadPointerSeqCst} {
 		var x struct {
 			before uintptr
 			i      unsafe.Pointer
@@ -888,7 +943,7 @@ func TestLoadPointer(t *testing.T) {
 		x.before = magicptr
 		x.after = magicptr
 		for delta := uintptr(1 << 16); delta+delta > delta; delta += delta {
-			k := LoadPointer(&x.i, order)
+			k := loadFunc(&x.i)
 			if k != x.i {
 				t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
 			}
@@ -901,7 +956,7 @@ func TestLoadPointer(t *testing.T) {
 }
 
 func TestStoreInt32(t *testing.T) {
-	for _, order := range memOrders {
+	for _, storeFunc := range []func(*int32, int32){StoreInt32Relaxed, StoreInt32Release, StoreInt32SeqCst} {
 		var x struct {
 			before int32
 			i      int32
@@ -911,7 +966,7 @@ func TestStoreInt32(t *testing.T) {
 		x.after = magic32
 		v := int32(0)
 		for delta := int32(1); delta+delta > delta; delta += delta {
-			StoreInt32(&x.i, v, order)
+			storeFunc(&x.i, v)
 			if x.i != v {
 				t.Fatalf("delta=%d i=%d v=%d", delta, x.i, v)
 			}
@@ -924,7 +979,7 @@ func TestStoreInt32(t *testing.T) {
 }
 
 func TestStoreUint32(t *testing.T) {
-	for _, order := range memOrders {
+	for _, storeFunc := range []func(*uint32, uint32){StoreUint32Relaxed, StoreUint32Release, StoreUint32SeqCst} {
 		var x struct {
 			before uint32
 			i      uint32
@@ -934,7 +989,7 @@ func TestStoreUint32(t *testing.T) {
 		x.after = magic32
 		v := uint32(0)
 		for delta := uint32(1); delta+delta > delta; delta += delta {
-			StoreUint32(&x.i, v, order)
+			storeFunc(&x.i, v)
 			if x.i != v {
 				t.Fatalf("delta=%d i=%d v=%d", delta, x.i, v)
 			}
@@ -950,7 +1005,7 @@ func TestStoreInt64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, storeFunc := range []func(*int64, int64){StoreInt64Relaxed, StoreInt64Release, StoreInt64SeqCst} {
 		var x struct {
 			before int64
 			i      int64
@@ -960,7 +1015,7 @@ func TestStoreInt64(t *testing.T) {
 		x.after = magic64
 		v := int64(0)
 		for delta := int64(1); delta+delta > delta; delta += delta {
-			StoreInt64(&x.i, v, order)
+			storeFunc(&x.i, v)
 			if x.i != v {
 				t.Fatalf("delta=%d i=%d v=%d", delta, x.i, v)
 			}
@@ -976,7 +1031,7 @@ func TestStoreUint64(t *testing.T) {
 	if test64err != nil {
 		t.Skipf("Skipping 64-bit tests: %v", test64err)
 	}
-	for _, order := range memOrders {
+	for _, storeFunc := range []func(*uint64, uint64){StoreUint64Relaxed, StoreUint64Release, StoreUint64SeqCst} {
 		var x struct {
 			before uint64
 			i      uint64
@@ -986,7 +1041,7 @@ func TestStoreUint64(t *testing.T) {
 		x.after = magic64
 		v := uint64(0)
 		for delta := uint64(1); delta+delta > delta; delta += delta {
-			StoreUint64(&x.i, v, order)
+			storeFunc(&x.i, v)
 			if x.i != v {
 				t.Fatalf("delta=%d i=%d v=%d", delta, x.i, v)
 			}
@@ -999,7 +1054,7 @@ func TestStoreUint64(t *testing.T) {
 }
 
 func TestStoreUintptr(t *testing.T) {
-	for _, order := range memOrders {
+	for _, storeFunc := range []func(*uintptr, uintptr){StoreUintptrRelaxed, StoreUintptrRelease, StoreUintptrSeqCst} {
 		var x struct {
 			before uintptr
 			i      uintptr
@@ -1011,7 +1066,7 @@ func TestStoreUintptr(t *testing.T) {
 		x.after = magicptr
 		v := uintptr(0)
 		for delta := uintptr(1); delta+delta > delta; delta += delta {
-			StoreUintptr(&x.i, v, order)
+			storeFunc(&x.i, v)
 			if x.i != v {
 				t.Fatalf("delta=%d i=%d v=%d", delta, x.i, v)
 			}
@@ -1024,7 +1079,7 @@ func TestStoreUintptr(t *testing.T) {
 }
 
 func TestStorePointer(t *testing.T) {
-	for _, order := range memOrders {
+	for _, storeFunc := range []func(*unsafe.Pointer, unsafe.Pointer){StorePointerRelaxed, StorePointerRelease, StorePointerSeqCst} {
 		var x struct {
 			before uintptr
 			i      unsafe.Pointer
@@ -1036,7 +1091,7 @@ func TestStorePointer(t *testing.T) {
 		x.after = magicptr
 		v := unsafe.Pointer(uintptr(0))
 		for delta := uintptr(1 << 16); delta+delta > delta; delta += delta {
-			StorePointer(&x.i, unsafe.Pointer(v), order)
+			storeFunc(&x.i, unsafe.Pointer(v))
 			if x.i != v {
 				t.Fatalf("delta=%d i=%d v=%d", delta, x.i, v)
 			}
@@ -1049,89 +1104,138 @@ func TestStorePointer(t *testing.T) {
 }
 
 func TestTestAndSetClear(t *testing.T) {
-	for _, order := range memOrders {
+	for _, testFunc := range []func(*bool) bool{
+		TestAndSetRelaxed, TestAndSetConsume, TestAndSetAcquire, TestAndSetRelease, TestAndSetAcqRel, TestAndSetSeqCst} {
 		var x = new(bool)
-		if TestAndSet(x, order) {
+		if testFunc(x) {
 			t.Fatalf("atomic flag set failed: flag=%v", *x)
 		}
-		if !TestAndSet(x, order) {
+		if !testFunc(x) {
 			t.Fatalf("atomic flag second set failed: flag=%v", *x)
 		}
-		if !TestAndSet(x, order) {
+		if !testFunc(x) {
 			t.Fatalf("atomic flag third set failed: flag=%v", *x)
 		}
-		Clear(x, order)
-		if TestAndSet(x, order) {
+		ClearSeqCst(x)
+		if testFunc(x) {
 			t.Fatalf("atomic flag set after clear failed: flag=%v", *x)
 		}
-		if !TestAndSet(x, order) {
+		if !testFunc(x) {
 			t.Fatalf("atomic flag second set after clear failed: flag=%v", *x)
 		}
 	}
 }
 
 func TestAndInt32(t *testing.T) {
-	testBinaryOpInt32(func(a int32, b int32) int32 { return a & b }, AndInt32, t)
+	for _, andFunc := range []func(*int32, int32) int32{
+		AndInt32Relaxed, AndInt32Consume, AndInt32Acquire, AndInt32Release, AndInt32AcqRel, AndInt32SeqCst} {
+		testBinaryOpInt32(func(a int32, b int32) int32 { return a & b }, andFunc, t)
+	}
 }
 
 func TestAndUint32(t *testing.T) {
-	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a & b }, AndUint32, t)
+	for _, andFunc := range []func(*uint32, uint32) uint32{
+		AndUint32Relaxed, AndUint32Consume, AndUint32Acquire, AndUint32Release, AndUint32AcqRel, AndUint32SeqCst} {
+		testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a & b }, andFunc, t)
+	}
 }
 
 func TestAndInt64(t *testing.T) {
-	testBinaryOpInt64(func(a int64, b int64) int64 { return a & b }, AndInt64, t)
+	for _, andFunc := range []func(*int64, int64) int64{
+		AndInt64Relaxed, AndInt64Consume, AndInt64Acquire, AndInt64Release, AndInt64AcqRel, AndInt64SeqCst} {
+		testBinaryOpInt64(func(a int64, b int64) int64 { return a & b }, andFunc, t)
+	}
 }
 
 func TestAndUint64(t *testing.T) {
-	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a & b }, AndUint64, t)
+	for _, andFunc := range []func(*uint64, uint64) uint64{
+		AndUint64Relaxed, AndUint64Consume, AndUint64Acquire, AndUint64Release, AndUint64AcqRel, AndUint64SeqCst} {
+		testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a & b }, andFunc, t)
+	}
 }
 
 func TestOrInt32(t *testing.T) {
-	testBinaryOpInt32(func(a int32, b int32) int32 { return a | b }, OrInt32, t)
+	for _, orFunc := range []func(*int32, int32) int32{
+		OrInt32Relaxed, OrInt32Consume, OrInt32Acquire, OrInt32Release, OrInt32AcqRel, OrInt32SeqCst} {
+		testBinaryOpInt32(func(a int32, b int32) int32 { return a | b }, orFunc, t)
+	}
 }
 
 func TestOrUint32(t *testing.T) {
-	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a | b }, OrUint32, t)
+	for _, orFunc := range []func(*uint32, uint32) uint32{
+		OrUint32Relaxed, OrUint32Consume, OrUint32Acquire, OrUint32Release, OrUint32AcqRel, OrUint32SeqCst} {
+		testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a | b }, orFunc, t)
+	}
 }
 
 func TestOrInt64(t *testing.T) {
-	testBinaryOpInt64(func(a int64, b int64) int64 { return a | b }, OrInt64, t)
+	for _, orFunc := range []func(*int64, int64) int64{
+		OrInt64Relaxed, OrInt64Consume, OrInt64Acquire, OrInt64Release, OrInt64AcqRel, OrInt64SeqCst} {
+		testBinaryOpInt64(func(a int64, b int64) int64 { return a | b }, orFunc, t)
+	}
 }
 
 func TestOrUint64(t *testing.T) {
-	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a | b }, OrUint64, t)
+	for _, orFunc := range []func(*uint64, uint64) uint64{
+		OrUint64Relaxed, OrUint64Consume, OrUint64Acquire, OrUint64Release, OrUint64AcqRel, OrUint64SeqCst} {
+		testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a | b }, orFunc, t)
+	}
 }
 
 func TestXorInt32(t *testing.T) {
-	testBinaryOpInt32(func(a int32, b int32) int32 { return a ^ b }, XorInt32, t)
+	for _, xorFunc := range []func(*int32, int32) int32{
+		XorInt32Relaxed, XorInt32Consume, XorInt32Acquire, XorInt32Release, XorInt32AcqRel, XorInt32SeqCst} {
+		testBinaryOpInt32(func(a int32, b int32) int32 { return a ^ b }, xorFunc, t)
+	}
 }
 
 func TestXorUint32(t *testing.T) {
-	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a ^ b }, XorUint32, t)
+	for _, xorFunc := range []func(*uint32, uint32) uint32{
+		XorUint32Relaxed, XorUint32Consume, XorUint32Acquire, XorUint32Release, XorUint32AcqRel, XorUint32SeqCst} {
+		testBinaryOpUint32(func(a uint32, b uint32) uint32 { return a ^ b }, xorFunc, t)
+	}
 }
 
 func TestXorInt64(t *testing.T) {
-	testBinaryOpInt64(func(a int64, b int64) int64 { return a ^ b }, XorInt64, t)
+	for _, xorFunc := range []func(*int64, int64) int64{
+		XorInt64Relaxed, XorInt64Consume, XorInt64Acquire, XorInt64Release, XorInt64AcqRel, XorInt64SeqCst} {
+		testBinaryOpInt64(func(a int64, b int64) int64 { return a ^ b }, xorFunc, t)
+	}
 }
 
 func TestXorUint64(t *testing.T) {
-	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a ^ b }, XorUint64, t)
+	for _, xorFunc := range []func(*uint64, uint64) uint64{
+		XorUint64Relaxed, XorUint64Consume, XorUint64Acquire, XorUint64Release, XorUint64AcqRel, XorUint64SeqCst} {
+		testBinaryOpUint64(func(a uint64, b uint64) uint64 { return a ^ b }, xorFunc, t)
+	}
 }
 
 func TestNandInt32(t *testing.T) {
-	testBinaryOpInt32(func(a int32, b int32) int32 { return ^(a & b) }, NandInt32, t)
+	for _, nandFunc := range []func(*int32, int32) int32{
+		NandInt32Relaxed, NandInt32Consume, NandInt32Acquire, NandInt32Release, NandInt32AcqRel, NandInt32SeqCst} {
+		testBinaryOpInt32(func(a int32, b int32) int32 { return ^(a & b) }, nandFunc, t)
+	}
 }
 
 func TestNandUint32(t *testing.T) {
-	testBinaryOpUint32(func(a uint32, b uint32) uint32 { return ^(a & b) }, NandUint32, t)
+	for _, nandFunc := range []func(*uint32, uint32) uint32{
+		NandUint32Relaxed, NandUint32Consume, NandUint32Acquire, NandUint32Release, NandUint32AcqRel, NandUint32SeqCst} {
+		testBinaryOpUint32(func(a uint32, b uint32) uint32 { return ^(a & b) }, nandFunc, t)
+	}
 }
 
 func TestNandInt64(t *testing.T) {
-	testBinaryOpInt64(func(a int64, b int64) int64 { return ^(a & b) }, NandInt64, t)
+	for _, nandFunc := range []func(*int64, int64) int64{
+		NandInt64Relaxed, NandInt64Consume, NandInt64Acquire, NandInt64Release, NandInt64AcqRel, NandInt64SeqCst} {
+		testBinaryOpInt64(func(a int64, b int64) int64 { return ^(a & b) }, nandFunc, t)
+	}
 }
 
 func TestNandUint64(t *testing.T) {
-	testBinaryOpUint64(func(a uint64, b uint64) uint64 { return ^(a & b) }, NandUint64, t)
+	for _, nandFunc := range []func(*uint64, uint64) uint64{
+		NandUint64Relaxed, NandUint64Consume, NandUint64Acquire, NandUint64Release, NandUint64AcqRel, NandUint64SeqCst} {
+		testBinaryOpUint64(func(a uint64, b uint64) uint64 { return ^(a & b) }, nandFunc, t)
+	}
 }
 
 // Tests of correct behavior, with contention.
@@ -1176,7 +1280,7 @@ func hammerSwapInt32(uaddr *uint32, count int) {
 	seed := int(uintptr(unsafe.Pointer(&count)))
 	for i := 0; i < count; i++ {
 		new := uint32(seed+i)<<16 | uint32(seed+i)<<16>>16
-		old := uint32(SwapInt32(addr, int32(new), MemoryOrderSeqCst))
+		old := uint32(SwapInt32SeqCst(addr, int32(new)))
 		if old>>16 != old<<16>>16 {
 			panic(fmt.Sprintf("SwapInt32 is not atomic: %v", old))
 		}
@@ -1187,7 +1291,7 @@ func hammerSwapUint32(addr *uint32, count int) {
 	seed := int(uintptr(unsafe.Pointer(&count)))
 	for i := 0; i < count; i++ {
 		new := uint32(seed+i)<<16 | uint32(seed+i)<<16>>16
-		old := SwapUint32(addr, new, MemoryOrderSeqCst)
+		old := SwapUint32SeqCst(addr, new)
 		if old>>16 != old<<16>>16 {
 			panic(fmt.Sprintf("SwapUint32 is not atomic: %v", old))
 		}
@@ -1201,7 +1305,7 @@ func hammerSwapUintptr32(uaddr *uint32, count int) {
 	seed := int(uintptr(unsafe.Pointer(&count)))
 	for i := 0; i < count; i++ {
 		new := uintptr(seed+i)<<16 | uintptr(seed+i)<<16>>16
-		old := SwapUintptr(addr, new, MemoryOrderSeqCst)
+		old := SwapUintptrSeqCst(addr, new)
 		if old>>16 != old<<16>>16 {
 			panic(fmt.Sprintf("SwapUintptr is not atomic: %#08x", old))
 		}
@@ -1211,13 +1315,13 @@ func hammerSwapUintptr32(uaddr *uint32, count int) {
 func hammerAddInt32(uaddr *uint32, count int) {
 	addr := (*int32)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
-		AddInt32(addr, 1, MemoryOrderSeqCst)
+		AddInt32SeqCst(addr, 1)
 	}
 }
 
 func hammerAddUint32(addr *uint32, count int) {
 	for i := 0; i < count; i++ {
-		AddUint32(addr, 1, MemoryOrderSeqCst)
+		AddUint32SeqCst(addr, 1)
 	}
 }
 
@@ -1226,7 +1330,7 @@ func hammerAddUintptr32(uaddr *uint32, count int) {
 	// not called on 64-bit systems.
 	addr := (*uintptr)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
-		AddUintptr(addr, 1, MemoryOrderSeqCst)
+		AddUintptrSeqCst(addr, 1)
 	}
 }
 
@@ -1234,8 +1338,8 @@ func hammerCompareAndSwapInt32(uaddr *uint32, count int) {
 	addr := (*int32)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
 		for {
-			v := LoadInt32(addr, MemoryOrderSeqCst)
-			if CompareAndSwapStrongInt32(addr, v, v+1, MemoryOrderSeqCst) {
+			v := LoadInt32SeqCst(addr)
+			if CompareAndSwapStrongInt32SeqCstSeqCst(addr, v, v+1) {
 				break
 			}
 		}
@@ -1245,8 +1349,8 @@ func hammerCompareAndSwapInt32(uaddr *uint32, count int) {
 func hammerCompareAndSwapUint32(addr *uint32, count int) {
 	for i := 0; i < count; i++ {
 		for {
-			v := LoadUint32(addr, MemoryOrderSeqCst)
-			if CompareAndSwapStrongUint32(addr, v, v+1, MemoryOrderSeqCst) {
+			v := LoadUint32SeqCst(addr)
+			if CompareAndSwapStrongUint32SeqCstSeqCst(addr, v, v+1) {
 				break
 			}
 		}
@@ -1259,8 +1363,8 @@ func hammerCompareAndSwapUintptr32(uaddr *uint32, count int) {
 	addr := (*uintptr)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
 		for {
-			v := LoadUintptr(addr, MemoryOrderSeqCst)
-			if CompareAndSwapStrongUintptr(addr, v, v+1, MemoryOrderSeqCst) {
+			v := LoadUintptrSeqCst(addr)
+			if CompareAndSwapStrongUintptrSeqCstSeqCst(addr, v, v+1) {
 				break
 			}
 		}
@@ -1325,7 +1429,7 @@ func hammerSwapInt64(uaddr *uint64, count int) {
 	seed := int(uintptr(unsafe.Pointer(&count)))
 	for i := 0; i < count; i++ {
 		new := uint64(seed+i)<<32 | uint64(seed+i)<<32>>32
-		old := uint64(SwapInt64(addr, int64(new), MemoryOrderSeqCst))
+		old := uint64(SwapInt64SeqCst(addr, int64(new)))
 		if old>>32 != old<<32>>32 {
 			panic(fmt.Sprintf("SwapInt64 is not atomic: %v", old))
 		}
@@ -1336,7 +1440,7 @@ func hammerSwapUint64(addr *uint64, count int) {
 	seed := int(uintptr(unsafe.Pointer(&count)))
 	for i := 0; i < count; i++ {
 		new := uint64(seed+i)<<32 | uint64(seed+i)<<32>>32
-		old := SwapUint64(addr, new, MemoryOrderSeqCst)
+		old := SwapUint64SeqCst(addr, new)
 		if old>>32 != old<<32>>32 {
 			panic(fmt.Sprintf("SwapUint64 is not atomic: %v", old))
 		}
@@ -1353,7 +1457,7 @@ func hammerSwapUintptr64(uaddr *uint64, count int) {
 		seed := int(uintptr(unsafe.Pointer(&count)))
 		for i := 0; i < count; i++ {
 			new := uintptr(seed+i)<<32 | uintptr(seed+i)<<32>>32
-			old := SwapUintptr(addr, new, MemoryOrderSeqCst)
+			old := SwapUintptrSeqCst(addr, new)
 			if old>>32 != old<<32>>32 {
 				panic(fmt.Sprintf("SwapUintptr is not atomic: %v", old))
 			}
@@ -1364,13 +1468,13 @@ func hammerSwapUintptr64(uaddr *uint64, count int) {
 func hammerAddInt64(uaddr *uint64, count int) {
 	addr := (*int64)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
-		AddInt64(addr, 1, MemoryOrderSeqCst)
+		AddInt64SeqCst(addr, 1)
 	}
 }
 
 func hammerAddUint64(addr *uint64, count int) {
 	for i := 0; i < count; i++ {
-		AddUint64(addr, 1, MemoryOrderSeqCst)
+		AddUint64SeqCst(addr, 1)
 	}
 }
 
@@ -1379,7 +1483,7 @@ func hammerAddUintptr64(uaddr *uint64, count int) {
 	// not called on 32-bit systems.
 	addr := (*uintptr)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
-		AddUintptr(addr, 1, MemoryOrderSeqCst)
+		AddUintptrSeqCst(addr, 1)
 	}
 }
 
@@ -1387,8 +1491,8 @@ func hammerCompareAndSwapInt64(uaddr *uint64, count int) {
 	addr := (*int64)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
 		for {
-			v := LoadInt64(addr, MemoryOrderSeqCst)
-			if CompareAndSwapStrongInt64(addr, v, v+1, MemoryOrderSeqCst) {
+			v := LoadInt64SeqCst(addr)
+			if CompareAndSwapStrongInt64SeqCstSeqCst(addr, v, v+1) {
 				break
 			}
 		}
@@ -1398,8 +1502,8 @@ func hammerCompareAndSwapInt64(uaddr *uint64, count int) {
 func hammerCompareAndSwapUint64(addr *uint64, count int) {
 	for i := 0; i < count; i++ {
 		for {
-			v := LoadUint64(addr, MemoryOrderSeqCst)
-			if CompareAndSwapStrongUint64(addr, v, v+1, MemoryOrderSeqCst) {
+			v := LoadUint64SeqCst(addr)
+			if CompareAndSwapStrongUint64SeqCstSeqCst(addr, v, v+1) {
 				break
 			}
 		}
@@ -1412,8 +1516,8 @@ func hammerCompareAndSwapUintptr64(uaddr *uint64, count int) {
 	addr := (*uintptr)(unsafe.Pointer(uaddr))
 	for i := 0; i < count; i++ {
 		for {
-			v := LoadUintptr(addr, MemoryOrderSeqCst)
-			if CompareAndSwapStrongUintptr(addr, v, v+1, MemoryOrderSeqCst) {
+			v := LoadUintptrSeqCst(addr)
+			if CompareAndSwapStrongUintptrSeqCstSeqCst(addr, v, v+1) {
 				break
 			}
 		}
@@ -1456,7 +1560,7 @@ func TestHammer64(t *testing.T) {
 
 func hammerStoreLoadInt32(t *testing.T, paddr unsafe.Pointer) {
 	addr := (*int32)(paddr)
-	v := LoadInt32(addr, MemoryOrderSeqCst)
+	v := LoadInt32SeqCst(addr)
 	vlo := v & ((1 << 16) - 1)
 	vhi := v >> 16
 	if vlo != vhi {
@@ -1466,12 +1570,12 @@ func hammerStoreLoadInt32(t *testing.T, paddr unsafe.Pointer) {
 	if vlo == 1e4 {
 		new = 0
 	}
-	StoreInt32(addr, new, MemoryOrderSeqCst)
+	StoreInt32SeqCst(addr, new)
 }
 
 func hammerStoreLoadUint32(t *testing.T, paddr unsafe.Pointer) {
 	addr := (*uint32)(paddr)
-	v := LoadUint32(addr, MemoryOrderSeqCst)
+	v := LoadUint32SeqCst(addr)
 	vlo := v & ((1 << 16) - 1)
 	vhi := v >> 16
 	if vlo != vhi {
@@ -1481,36 +1585,36 @@ func hammerStoreLoadUint32(t *testing.T, paddr unsafe.Pointer) {
 	if vlo == 1e4 {
 		new = 0
 	}
-	StoreUint32(addr, new, MemoryOrderSeqCst)
+	StoreUint32SeqCst(addr, new)
 }
 
 func hammerStoreLoadInt64(t *testing.T, paddr unsafe.Pointer) {
 	addr := (*int64)(paddr)
-	v := LoadInt64(addr, MemoryOrderSeqCst)
+	v := LoadInt64SeqCst(addr)
 	vlo := v & ((1 << 32) - 1)
 	vhi := v >> 32
 	if vlo != vhi {
 		t.Fatalf("Int64: %#x != %#x", vlo, vhi)
 	}
 	new := v + 1 + 1<<32
-	StoreInt64(addr, new, MemoryOrderSeqCst)
+	StoreInt64SeqCst(addr, new)
 }
 
 func hammerStoreLoadUint64(t *testing.T, paddr unsafe.Pointer) {
 	addr := (*uint64)(paddr)
-	v := LoadUint64(addr, MemoryOrderSeqCst)
+	v := LoadUint64SeqCst(addr)
 	vlo := v & ((1 << 32) - 1)
 	vhi := v >> 32
 	if vlo != vhi {
 		t.Fatalf("Uint64: %#x != %#x", vlo, vhi)
 	}
 	new := v + 1 + 1<<32
-	StoreUint64(addr, new, MemoryOrderSeqCst)
+	StoreUint64SeqCst(addr, new)
 }
 
 func hammerStoreLoadUintptr(t *testing.T, paddr unsafe.Pointer) {
 	addr := (*uintptr)(paddr)
-	v := LoadUintptr(addr, MemoryOrderSeqCst)
+	v := LoadUintptrSeqCst(addr)
 	new := v
 	if arch32 {
 		vlo := v & ((1 << 16) - 1)
@@ -1531,12 +1635,12 @@ func hammerStoreLoadUintptr(t *testing.T, paddr unsafe.Pointer) {
 		inc := uint64(1 + 1<<32)
 		new = v + uintptr(inc)
 	}
-	StoreUintptr(addr, new, MemoryOrderSeqCst)
+	StoreUintptrSeqCst(addr, new)
 }
 
 func hammerStoreLoadPointer(t *testing.T, paddr unsafe.Pointer) {
 	addr := (*unsafe.Pointer)(paddr)
-	v := uintptr(LoadPointer(addr, MemoryOrderSeqCst))
+	v := uintptr(LoadPointerSeqCst(addr))
 	new := v
 	if arch32 {
 		vlo := v & ((1 << 16) - 1)
@@ -1557,7 +1661,7 @@ func hammerStoreLoadPointer(t *testing.T, paddr unsafe.Pointer) {
 		inc := uint64(1 + 1<<32)
 		new = v + uintptr(inc)
 	}
-	StorePointer(addr, unsafe.Pointer(new), MemoryOrderSeqCst)
+	StorePointerSeqCst(addr, unsafe.Pointer(new))
 }
 
 func TestHammerStoreLoad(t *testing.T) {
@@ -1606,15 +1710,15 @@ func TestStoreLoadSeqCst32(t *testing.T) {
 		go func(me int) {
 			he := 1 - me
 			for i := int32(1); i < N; i++ {
-				StoreInt32(&X[me], i, MemoryOrderSeqCst)
-				my := LoadInt32(&X[he], MemoryOrderSeqCst)
-				StoreInt32(&ack[me][i%3], my, MemoryOrderSeqCst)
-				for w := 1; LoadInt32(&ack[he][i%3], MemoryOrderSeqCst) == -1; w++ {
+				StoreInt32SeqCst(&X[me], i)
+				my := LoadInt32SeqCst(&X[he])
+				StoreInt32SeqCst(&ack[me][i%3], my)
+				for w := 1; LoadInt32SeqCst(&ack[he][i%3]) == -1; w++ {
 					if w%1000 == 0 {
 						runtime.Gosched()
 					}
 				}
-				his := LoadInt32(&ack[he][i%3], MemoryOrderSeqCst)
+				his := LoadInt32SeqCst(&ack[he][i%3])
 				if (my != i && my != i-1) || (his != i && his != i-1) {
 					t.Errorf("invalid values: %d/%d (%d)", my, his, i)
 					break
@@ -1623,7 +1727,7 @@ func TestStoreLoadSeqCst32(t *testing.T) {
 					t.Errorf("store/load are not sequentially consistent: %d/%d (%d)", my, his, i)
 					break
 				}
-				StoreInt32(&ack[me][(i-1)%3], -1, MemoryOrderSeqCst)
+				StoreInt32SeqCst(&ack[me][(i-1)%3], -1)
 			}
 			c <- true
 		}(p)
@@ -1651,15 +1755,15 @@ func TestStoreLoadSeqCst64(t *testing.T) {
 		go func(me int) {
 			he := 1 - me
 			for i := int64(1); i < N; i++ {
-				StoreInt64(&X[me], i, MemoryOrderSeqCst)
-				my := LoadInt64(&X[he], MemoryOrderSeqCst)
-				StoreInt64(&ack[me][i%3], my, MemoryOrderSeqCst)
-				for w := 1; LoadInt64(&ack[he][i%3], MemoryOrderSeqCst) == -1; w++ {
+				StoreInt64SeqCst(&X[me], i)
+				my := LoadInt64SeqCst(&X[he])
+				StoreInt64SeqCst(&ack[me][i%3], my)
+				for w := 1; LoadInt64SeqCst(&ack[he][i%3]) == -1; w++ {
 					if w%1000 == 0 {
 						runtime.Gosched()
 					}
 				}
-				his := LoadInt64(&ack[he][i%3], MemoryOrderSeqCst)
+				his := LoadInt64SeqCst(&ack[he][i%3])
 				if (my != i && my != i-1) || (his != i && his != i-1) {
 					t.Errorf("invalid values: %d/%d (%d)", my, his, i)
 					break
@@ -1668,7 +1772,7 @@ func TestStoreLoadSeqCst64(t *testing.T) {
 					t.Errorf("store/load are not sequentially consistent: %d/%d (%d)", my, his, i)
 					break
 				}
-				StoreInt64(&ack[me][(i-1)%3], -1, MemoryOrderSeqCst)
+				StoreInt64SeqCst(&ack[me][(i-1)%3], -1)
 			}
 			c <- true
 		}(p)
@@ -1701,9 +1805,9 @@ func TestStoreLoadRelAcq32(t *testing.T) {
 				if (i+p)%2 == 0 {
 					X.data1 = i
 					X.data2 = float32(i)
-					StoreInt32(&X.signal, i, MemoryOrderRelease)
+					StoreInt32Release(&X.signal, i)
 				} else {
-					for w := 1; LoadInt32(&X.signal, MemoryOrderAcquire) != i; w++ {
+					for w := 1; LoadInt32Acquire(&X.signal) != i; w++ {
 						if w%1000 == 0 {
 							runtime.Gosched()
 						}
@@ -1750,9 +1854,9 @@ func TestStoreLoadRelAcq64(t *testing.T) {
 				if (i+p)%2 == 0 {
 					X.data1 = i
 					X.data2 = float64(i)
-					StoreInt64(&X.signal, i, MemoryOrderRelease)
+					StoreInt64Release(&X.signal, i)
 				} else {
-					for w := 1; LoadInt64(&X.signal, MemoryOrderAcquire) != i; w++ {
+					for w := 1; LoadInt64Acquire(&X.signal) != i; w++ {
 						if w%1000 == 0 {
 							runtime.Gosched()
 						}
@@ -1799,10 +1903,10 @@ func TestUnaligned64(t *testing.T) {
 	x := make([]uint32, 4)
 	p := (*uint64)(unsafe.Pointer(&x[1])) // misaligned
 
-	shouldPanic(t, "LoadUint64", func() { LoadUint64(p, MemoryOrderSeqCst) })
-	shouldPanic(t, "StoreUint64", func() { StoreUint64(p, 1, MemoryOrderSeqCst) })
-	shouldPanic(t, "CompareAndSwapUint64", func() { CompareAndSwapStrongUint64(p, 1, 2, MemoryOrderSeqCst) })
-	shouldPanic(t, "AddUint64", func() { AddUint64(p, 3, MemoryOrderSeqCst) })
+	shouldPanic(t, "LoadUint64", func() { LoadUint64SeqCst(p) })
+	shouldPanic(t, "StoreUint64", func() { StoreUint64SeqCst(p, 1) })
+	shouldPanic(t, "CompareAndSwapUint64", func() { CompareAndSwapStrongUint64SeqCstSeqCst(p, 1, 2) })
+	shouldPanic(t, "AddUint64", func() { AddUint64SeqCst(p, 3) })
 }
 
 func TestSimpleSpinlock(t *testing.T) {
@@ -1813,11 +1917,11 @@ func TestSimpleSpinlock(t *testing.T) {
 	for i := 0; i < rts; i++ {
 		w.Add(1)
 		go func() {
-			for TestAndSet(sl, MemoryOrderAcquire) {
+			for TestAndSetAcquire(sl) {
 				runtime.Gosched()
 			}
 			defer w.Done()
-			defer Clear(sl, MemoryOrderRelease)
+			defer ClearRelease(sl)
 			a++
 		}()
 	}
@@ -1830,41 +1934,35 @@ func TestSimpleSpinlock(t *testing.T) {
 /* Current behavior: Don't check for nil just fail with SIGSEGV
 func TestNilDeref(t *testing.T) {
 	funcs := [...]func(){
-		func() { CompareAndSwapInt32(nil, 0, 0, false, MemoryOrderSeqCst) },
-		func() { CompareAndSwapInt64(nil, 0, 0, false, MemoryOrderSeqCst) },
-		func() { CompareAndSwapUint32(nil, 0, 0, false, MemoryOrderSeqCst) },
-		func() { CompareAndSwapUint64(nil, 0, 0, false, MemoryOrderSeqCst) },
-		func() { CompareAndSwapUintptr(nil, 0, 0, false, MemoryOrderSeqCst) },
-		func() { CompareAndSwapPointer(nil, nil, nil, false, MemoryOrderSeqCst) },
-		func() { CompareAndSwap2Int32(nil, 0, 0, false, MemoryOrderSeqCst, MemoryOrderSeqCst) },
-		func() { CompareAndSwap2Int64(nil, 0, 0, false, MemoryOrderSeqCst, MemoryOrderSeqCst) },
-		func() { CompareAndSwap2Uint32(nil, 0, 0, false, MemoryOrderSeqCst, MemoryOrderSeqCst) },
-		func() { CompareAndSwap2Uint64(nil, 0, 0, false, MemoryOrderSeqCst, MemoryOrderSeqCst) },
-		func() { CompareAndSwap2Uintptr(nil, 0, 0, false, MemoryOrderSeqCst, MemoryOrderSeqCst) },
-		func() { CompareAndSwap2Pointer(nil, nil, nil, false, MemoryOrderSeqCst, MemoryOrderSeqCst) },
-		func() { SwapInt32(nil, 0, MemoryOrderSeqCst) },
-		func() { SwapUint32(nil, 0, MemoryOrderSeqCst) },
-		func() { SwapInt64(nil, 0, MemoryOrderSeqCst) },
-		func() { SwapUint64(nil, 0, MemoryOrderSeqCst) },
-		func() { SwapUintptr(nil, 0, MemoryOrderSeqCst) },
-		func() { SwapPointer(nil, nil, MemoryOrderSeqCst) },
-		func() { AddInt32(nil, 0, MemoryOrderSeqCst) },
-		func() { AddUint32(nil, 0, MemoryOrderSeqCst) },
-		func() { AddInt64(nil, 0, MemoryOrderSeqCst) },
-		func() { AddUint64(nil, 0, MemoryOrderSeqCst) },
-		func() { AddUintptr(nil, 0, MemoryOrderSeqCst) },
-		func() { LoadInt32(nil, MemoryOrderSeqCst) },
-		func() { LoadInt64(nil, MemoryOrderSeqCst) },
-		func() { LoadUint32(nil, MemoryOrderSeqCst) },
-		func() { LoadUint64(nil, MemoryOrderSeqCst) },
-		func() { LoadUintptr(nil, MemoryOrderSeqCst) },
-		func() { LoadPointer(nil, MemoryOrderSeqCst) },
-		func() { StoreInt32(nil, 0, MemoryOrderSeqCst) },
-		func() { StoreInt64(nil, 0, MemoryOrderSeqCst) },
-		func() { StoreUint32(nil, 0, MemoryOrderSeqCst) },
-		func() { StoreUint64(nil, 0, MemoryOrderSeqCst) },
-		func() { StoreUintptr(nil, 0, MemoryOrderSeqCst) },
-		func() { StorePointer(nil, nil, MemoryOrderSeqCst) },
+		func() { CompareAndSwapInt32SeqCstSeqCst(nil, 0, 0, false) },
+		func() { CompareAndSwapInt64SeqCstSeqCst(nil, 0, 0, false) },
+		func() { CompareAndSwapUint32SeqCstSeqCst(nil, 0, 0, false) },
+		func() { CompareAndSwapUint64SeqCstSeqCst(nil, 0, 0, false) },
+		func() { CompareAndSwapUintptrSeqCstSeqCst(nil, 0, 0, false) },
+		func() { CompareAndSwapPointerSeqCstSeqCst(nil, nil, nil, false) },
+		func() { SwapInt32SeqCst(nil, 0) },
+		func() { SwapUint32SeqCst(nil, 0) },
+		func() { SwapInt64SeqCst(nil, 0) },
+		func() { SwapUint64SeqCst(nil, 0) },
+		func() { SwapUintptrSeqCst(nil, 0) },
+		func() { SwapPointerSeqCst(nil, nil) },
+		func() { AddInt32SeqCst(nil, 0) },
+		func() { AddUint32SeqCst(nil, 0) },
+		func() { AddInt64SeqCst(nil, 0) },
+		func() { AddUint64SeqCst(nil, 0) },
+		func() { AddUintptrSeqCst(nil, 0) },
+		func() { LoadInt32SeqCst(nil) },
+		func() { LoadInt64SeqCst(nil) },
+		func() { LoadUint32SeqCst(nil) },
+		func() { LoadUint64SeqCst(nil) },
+		func() { LoadUintptrSeqCst(nil) },
+		func() { LoadPointerSeqCst(nil) },
+		func() { StoreInt32SeqCst(nil, 0) },
+		func() { StoreInt64SeqCst(nil, 0) },
+		func() { StoreUint32SeqCst(nil, 0) },
+		func() { StoreUint64SeqCst(nil, 0) },
+		func() { StoreUintptrSeqCst(nil, 0) },
+		func() { StorePointerSeqCst(nil, nil) },
 	}
 	for _, f := range funcs {
 		func() {

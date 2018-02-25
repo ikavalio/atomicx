@@ -5,62 +5,9 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"testing"
 )
-
-func basicAtomicityTestSuite(order MemoryOrder, t *testing.T) {
-	const (
-		repeat     = 100
-		iterations = 100
-		goroutines = 100
-		totalExp   = iterations * goroutines
-	)
-
-	for k := 0; k < repeat; k++ {
-		var wg sync.WaitGroup
-		pa := new(int64)
-		pb := new(int64)
-
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for j := 0; j < iterations; j++ {
-					AddInt64(pa, 1, order)
-					AddInt64(pb, 1, order)
-				}
-			}()
-		}
-
-		wg.Wait()
-		a := (int)(LoadInt64(pa, order))
-		b := (int)(LoadInt64(pb, order))
-		if totalExp != a || totalExp != b {
-			t.Errorf("Atomicity is violated for order %s. Got a = %d and b = %d, expected %d", order, a, b, totalExp)
-			return
-		}
-	}
-}
-
-func TestAtomicity(t *testing.T) {
-	// some of the orders may not be applicable for atomic operations in atomicityTestSuite, but they still must be atomic
-	if runtime.NumCPU() == 1 {
-		t.Skipf("Skipping test on %v processor machine", runtime.NumCPU())
-	}
-	orders := [...]MemoryOrder{
-		MemoryOrderRelaxed,
-		MemoryOrderConsume,
-		MemoryOrderAcquire,
-		MemoryOrderRelease,
-		MemoryOrderAcqRel,
-		MemoryOrderSeqCst,
-	}
-	for _, order := range orders {
-		basicAtomicityTestSuite(order, t)
-	}
-}
 
 type testReader func(*int32, *int32) (int, int)
 type testWriter func(*int32, *int32)
@@ -93,8 +40,8 @@ func basicMemoryOrderTest(reader testReader, writer testWriter) [4]int {
 	}()
 
 	for i := 0; i < iterations; i++ {
-		StoreInt32(pa, 0, MemoryOrderSeqCst)
-		StoreInt32(pb, 0, MemoryOrderSeqCst)
+		StoreInt32SeqCst(pa, 0)
+		StoreInt32SeqCst(pb, 0)
 		beginWr <- true
 		beginRd <- true
 		<-endWr
@@ -110,13 +57,13 @@ func TestMemoryOrderRelaxed(t *testing.T) {
 	}
 	res := basicMemoryOrderTest(
 		testReader(func(pa *int32, pb *int32) (a int, b int) {
-			a = (int)(LoadInt32(pa, MemoryOrderRelaxed))
+			a = (int)(LoadInt32Relaxed(pa))
 			b = (int)(*pb) // not atomic
 			return
 		}),
 		testWriter(func(pa *int32, pb *int32) {
 			*pb = 1 // not atomic
-			StoreInt32(pa, 1, MemoryOrderRelaxed)
+			StoreInt32Relaxed(pa, 1)
 		}),
 	)
 
@@ -138,13 +85,13 @@ func TestMemoryOrderSeqCst(t *testing.T) {
 	}
 	res := basicMemoryOrderTest(
 		testReader(func(pa *int32, pb *int32) (a int, b int) {
-			a = (int)(LoadInt32(pa, MemoryOrderSeqCst))
-			b = (int)(LoadInt32(pb, MemoryOrderSeqCst))
+			a = (int)(LoadInt32SeqCst(pa))
+			b = (int)(LoadInt32SeqCst(pb))
 			return
 		}),
 		testWriter(func(pa *int32, pb *int32) {
-			StoreInt32(pb, 1, MemoryOrderSeqCst)
-			StoreInt32(pa, 1, MemoryOrderSeqCst)
+			StoreInt32SeqCst(pb, 1)
+			StoreInt32SeqCst(pa, 1)
 		}),
 	)
 
@@ -163,13 +110,13 @@ func TestMemoryOrderAcqRel(t *testing.T) {
 	}
 	res := basicMemoryOrderTest(
 		testReader(func(pa *int32, pb *int32) (a int, b int) {
-			a = (int)(LoadInt32(pa, MemoryOrderAcquire))
+			a = (int)(LoadInt32Acquire(pa))
 			b = (int)(*pb) // not atomic
 			return
 		}),
 		testWriter(func(pa *int32, pb *int32) {
 			*pb = 1 // not atomic
-			StoreInt32(pa, 1, MemoryOrderRelease)
+			StoreInt32Release(pa, 1)
 		}),
 	)
 
